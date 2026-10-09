@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BookWriters — Write together</title>
+<meta name="description" content="Find writing partners, build books together, and share your stories on BookWriters.">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--ink:#20231f;--muted:#6e746c;--paper:#f8f7f2;--card:#fffefa;--line:#e4e3da;--green:#315c45;--green2:#e6efe7;--gold:#e7b86b;--red:#a33c35}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:10px 15px;background:var(--green);color:white;font-weight:650}button:hover{filter:brightness(.94)}button.secondary{background:var(--green2);color:var(--green)}button.ghost{background:transparent;color:var(--green);border:1px solid var(--line)}button.danger{background:#f7e8e5;color:var(--red)}button:disabled{opacity:.5;cursor:not-allowed}input,textarea,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:#fffefa;color:var(--ink);outline-color:var(--green)}textarea{resize:vertical;min-height:100px}label{display:block;font-size:.9rem;font-weight:650;margin:12px 0 6px}.small{font-size:.88rem;color:var(--muted)}.hidden{display:none!important}.top{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}.nav{max-width:1180px;margin:auto;padding:14px 22px;display:flex;align-items:center;gap:18px}.brand{display:flex;align-items:center;gap:10px;font-size:1.2rem;font-weight:850;letter-spacing:-.04em;white-space:nowrap}.mark{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:var(--green);color:white;font-family:Georgia,serif;font-size:22px}.navlinks{display:flex;gap:6px;flex:1}.navlinks button{background:transparent;color:var(--muted);font-weight:650;padding:9px 11px}.navlinks button.active,.navlinks button:hover{background:var(--green2);color:var(--green)}.navright{display:flex;gap:8px;align-items:center}.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 70px}.hero{display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:stretch;margin-bottom:28px}.hero-main{background:var(--green);color:white;border-radius:22px;padding:clamp(25px,4vw,48px);position:relative;overflow:hidden}.hero-main:after{content:"“";font:250px Georgia,serif;position:absolute;right:10px;bottom:-100px;color:#ffffff14}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.75rem;font-weight:800;color:var(--gold)}h1{font:700 clamp(2.2rem,5vw,4.2rem)/1.04 Georgia,serif;letter-spacing:-.04em;margin:13px 0 18px;max-width:650px}.hero-main p{max-width:510px;color:#e1e9e0;font-size:1.05rem}.hero-main button{background:var(--gold);color:#33291b;margin-top:8px}.hero-side{border:1px solid var(--line);border-radius:22px;padding:26px;background:#f0eee4;display:flex;flex-direction:column;justify-content:space-between}.hero-side h2{font:700 1.8rem Georgia,serif;margin:8px 0}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}.stat{background:#fffefa99;border-radius:12px;padding:13px}.stat strong{display:block;font:700 1.5rem Georgia,serif}.stat span{font-size:.82rem;color:var(--muted)}.section-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:26px 0 16px}.section-head h2{font:700 1.8rem Georgia,serif;margin:0}.section-head p{margin:4px 0 0;color:var(--muted)}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}.toolbar input{max-width:330px}.toolbar select{max-width:210px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.book{background:var(--card);border:1px solid var(--line);border-radius:17px;padding:20px;display:flex;flex-direction:column;min-height:235px;transition:transform .15s,border-color .15s}.book:hover{transform:translateY(-2px);border-color:#b4c9b6}.book-top{display:flex;justify-content:space-between;gap:10px;align-items:start}.genre{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--green);background:var(--green2);border-radius:20px;padding:5px 9px}.book h3{font:700 1.35rem/1.2 Georgia,serif;margin:15px 0 8px}.book p{color:var(--muted);font-size:.92rem;margin:0 0 18px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.book-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:8px}.author{font-size:.82rem;color:var(--muted)}.empty{border:1px dashed #c9c9bd;border-radius:16px;padding:35px;text-align:center;color:var(--muted);grid-column:1/-1}.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:16px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}.span2{grid-column:1/-1}.page-title{font:700 clamp(2rem,4vw,3rem) Georgia,serif;margin:0 0 8px}.detail-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(270px,1fr);gap:18px}.chapter-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}.chapter-item{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:12px}.chapter-item button{flex-shrink:0}.reader{white-space:pre-wrap;font:1.06rem/1.9 Georgia,serif;overflow-wrap:anywhere}.reader h3{font:700 1.4rem Georgia,serif}.chat-box{height:250px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfaf5;display:flex;flex-direction:column;gap:10px}.message{background:white;border:1px solid var(--line);padding:9px 11px;border-radius:12px;max-width:95%;align-self:flex-start}.message.mine{background:var(--green2);align-self:flex-end}.message b{font-size:.8rem;display:block;margin-bottom:3px}.message p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.chat-send{display:flex;gap:8px;margin-top:8px}.chat-send input{min-width:0}.notice{padding:12px 14px;border-radius:10px;background:var(--green2);color:var(--green);margin:12px 0}.notice.error{background:#f8e9e6;color:var(--red)}.modal-backdrop{position:fixed;inset:0;background:#171b18a8;z-index:10;display:grid;place-items:center;padding:18px}.modal{width:min(490px,100%);max-height:90vh;overflow:auto;background:var(--paper);border-radius:18px;padding:24px;box-shadow:0 20px 80px #0003}.modal h2{font:700 2rem Georgia,serif;margin:0 0 6px}.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}.profile-row{display:flex;gap:14px;align-items:center}.avatar{width:54px;height:54px;border-radius:50%;background:var(--green2);display:grid;place-items:center;color:var(--green);font:700 1.4rem Georgia,serif}.footer{border-top:1px solid var(--line);padding:22px;text-align:center;color:var(--muted);font-size:.85rem}.loading{color:var(--muted);padding:20px 0}.pill{display:inline-block;padding:4px 9px;border-radius:20px;background:#f1eadc;color:#70572d;font-size:.75rem;font-weight:700}
+@media(max-width:800px){.hero{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-layout{grid-template-columns:1fr}.nav{flex-wrap:wrap;gap:10px}.navlinks{order:3;flex-basis:100%;overflow:auto}.navright{margin-left:auto}.wrap{padding-top:20px}}
+@media(max-width:540px){.grid{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}.span2{grid-column:auto}.nav{padding:10px 14px}.navright .small{display:none}.wrap{padding-left:14px;padding-right:14px}.hero-main{padding:25px}.section-head{align-items:start;flex-direction:column}.toolbar>*{max-width:none!important;flex:1 1 100%}}
+</style>
+</head>
+<body>
+<header class="top"><div class="nav">
+  <div class="brand"><span class="mark">B</span> BookWriters</div>
+  <nav class="navlinks" aria-label="Main navigation">
+    <button class="active" data-page="discover">Discover</button><button data-page="library">My library</button><button data-page="profile">My profile</button>
+  </nav>
+  <div class="navright"><span class="small" id="signed-label">Not signed in</span><button id="auth-button">Sign in</button></div>
+</div></header>
+<main class="wrap">
+  <section id="page-discover">
+    <div class="hero">
+      <div class="hero-main"><div class="eyebrow">Good stories grow together</div><h1>Your next chapter starts with a collaborator.</h1><p>Find writers who get your ideas, build a book one chapter at a time, and bring your stories into the world together.</p><button id="hero-create">Start a book</button></div>
+      <div class="hero-side"><div><span class="pill">A home for storytellers</span><h2>From first idea to final page.</h2><p class="small">Create a project, invite a co-writer, and keep your work in one place.</p></div><div class="stats"><div class="stat"><strong id="stat-books">—</strong><span>Published books</span></div><div class="stat"><strong id="stat-genres">—</strong><span>Genres to explore</span></div></div></div>
+    </div>
+    <div class="section-head"><div><h2>Explore the bookshelf</h2><p>Discover published stories from the community.</p></div></div>
+    <div class="toolbar"><input id="search-books" placeholder="Search titles, descriptions, genres…" aria-label="Search books"><select id="genre-filter" aria-label="Filter by genre"><option value="">All genres</option></select><button class="secondary" id="refresh-books">Refresh</button></div>
+    <div id="discover-books" class="grid"><div class="loading">Loading the bookshelf…</div></div>
+  </section>
+  <section id="page-library" class="hidden">
+    <div class="section-head"><div><h2>My library</h2><p>Your books and the projects you collaborate on.</p></div><button id="library-create">+ New book</button></div>
+    <div id="library-books" class="grid"><div class="loading">Sign in to see your library.</div></div>
+  </section>
+  <section id="page-profile" class="hidden">
+    <div class="section-head"><div><h2>My profile</h2><p>Give other writers a little introduction.</p></div></div>
+    <div class="panel" id="profile-panel"><p class="small">Sign in to create or edit your profile.</p></div>
+  </section>
+  <section id="page-book" class="hidden">
+    <button class="ghost" id="back-books">← Back to books</button>
+    <div id="book-detail" class="loading">Loading book…</div>
+  </section>
+</main>
+<footer class="footer">BookWriters · Made for people with stories to tell.</footer>
+<div id="modal-root"></div>
+<script>
+(() => {
+  const SUPABASE_URL = "https://ysomxdoicbfmgbveghkr.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_1VtpTU1pGn9yLn6Q_POtsw_Kp5ULXv6";
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  let session = null, profile = null, books = [], currentBook = null, currentChapter = null, chatChannel = null, chatRefreshTimer = null;
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const niceDate = v => v ? new Date(v).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : '';
+  function notify(message, error=false) {
+    let el = $('#global-notice');
+    if (!el) { el=document.createElement('div');el.id='global-notice';el.style.cssText='position:fixed;right:16px;bottom:16px;z-index:20;max-width:min(420px,calc(100vw - 32px));box-shadow:0 8px 30px #0002';document.body.appendChild(el); }
+    el.className='notice'+(error?' error':'');el.textContent=message;
+    clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.remove(),5500);
+  }
+  function showPage(page) {
+    ['discover','library','profile','book'].forEach(p => $('#page-'+p).classList.toggle('hidden',p!==page));
+    $$('.navlinks button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+    window.scrollTo({top:0,behavior:'smooth'});
+    if(page==='library') loadLibrary();
+    if(page==='profile') renderProfile();
+  }
+  function showModal(title, body, onSubmit, submitLabel='Save') {
+    const root=$('#modal-root');
+    root.innerHTML='<div class="modal-backdrop" id="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><h2>'+esc(title)+'</h2><div class="small">Your writing home, your way.</div><form id="modal-form">'+body+'<div class="modal-actions"><button type="button" class="ghost" id="modal-cancel">Cancel</button><button type="submit">'+esc(submitLabel)+'</button></div></form></div></div>';
+    $('#modal-cancel').onclick=()=>root.innerHTML='';
+    $('#modal-backdrop').addEventListener('click',e=>{if(e.target.id==='modal-backdrop')root.innerHTML='';});
+    $('#modal-form').onsubmit=async e=>{e.preventDefault();const btn=$('#modal-form button[type=submit]');btn.disabled=true;try{await onSubmit(new FormData(e.currentTarget));}catch(err){notify(err.message||'Something went wrong.',true);}finally{btn.disabled=false;}};
+  }
+  function authModal(mode='signin') {
+    const signup=mode==='signup';
+    showModal(signup?'Create your writer account':'Welcome back', (signup?'<label for="auth-name">Display name</label><input id="auth-name" name="display_name" maxlength="60" required placeholder="Your pen name">':'')+
+      '<label for="auth-email">Email</label><input id="auth-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com">'+
+      '<label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="'+(signup?'new-password':'current-password')+'" minlength="6" required placeholder="At least 6 characters">'+
+      '<p class="small">'+(signup?'You may need to confirm your email before signing in.':'Use the email and password for your BookWriters account.')+'</p><button type="button" class="ghost" id="switch-auth" style="width:100%">'+(signup?'Already have an account? Sign in':'New here? Create an account')+'</button>',async fd=>{
+        const email=String(fd.get('email')).trim(),password=String(fd.get('password'));
+        if(signup){
+          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:String(fd.get('display_name')).trim()}}});
+          if(error)throw error;
+          $('#modal-root').innerHTML='';
+          if(!data.session)notify('Account created! Check your email for a confirmation link, then sign in.');
+          else notify('Your account is ready. Welcome to BookWriters!');
+        }else{
+          const {error}=await db.auth.signInWithPassword({email,password});if(error)throw error;
+          $('#modal-root').innerHTML='';notify('You are signed in.');
+        }
+      },signup?'Create account':'Sign in');
+    $('#switch-auth').onclick=()=>authModal(signup?'signin':'signup');
+  }
+  function updateAuthUI() {
+    $('#signed-label').textContent=session?(profile?.display_name||profile?.username||session.user.email):'Not signed in';
+    $('#auth-button').textContent=session?'Sign out':'Sign in';
+    $('#auth-button').onclick=async()=>{if(session){const {error}=await db.auth.signOut();if(error)notify(error.message,true);else notify('Signed out.');}else authModal();};
+    $('#hero-create').textContent=session?'Start a book':'Sign in to start a book';
+  }
+  async function loadProfile() {
+    if(!session){profile=null;updateAuthUI();return;}
+    const {data,error}=await db.from('profiles').select('id,username,display_name,bio,created_at').eq('id',session.user.id).maybeSingle();
+    if(error){console.error(error);notify('Could not load your profile: '+error.message,true);}
+    profile=data||null;updateAuthUI();
+  }
+  async function loadBooks() {
+    const {data,error}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').eq('is_published',true).order('created_at',{ascending:false}).limit(100);
+    if(error){$('#discover-books').innerHTML='<div class="empty">Could not load books. Check your Supabase setup and policies.<br><span class="small">'+esc(error.message)+'</span></div>';return;}
+    books=data||[];
+    const ids=[...new Set(books.map(b=>b.owner_id))];
+    let authors={};
+    if(ids.length){const r=await db.from('profiles').select('id,display_name,username').in('id',ids);if(!r.error)(r.data||[]).forEach(p=>authors[p.id]=p.display_name||p.username||'Writer');}
+    books=books.map(b=>({...b,author:authors[b.owner_id]||'Community writer'}));
+    const genres=[...new Set(books.map(b=>b.genre).filter(Boolean))].sort();
+    $('#genre-filter').innerHTML='<option value="">All genres</option>'+genres.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join('');
+    $('#stat-books').textContent=books.length;$('#stat-genres').textContent=genres.length;
+    renderDiscover();
+  }
+  function bookCard(b, own=false) {
+    return '<article class="book"><div class="book-top"><span class="genre">'+esc(b.genre||'Unsorted')+'</span>'+(own?'<span class="pill">'+(b.is_published?'Published':'Draft')+'</span>':'')+'</div><h3>'+esc(b.title)+'</h3><p>'+esc(b.description||'A story waiting to be discovered.')+'</p><div class="book-foot"><span class="author">'+(own?'Updated '+niceDate(b.created_at):'By '+esc(b.author||'Community writer'))+'</span><button class="secondary" data-open-book="'+esc(b.id)+'">Open book</button></div></article>';
+  }
+  function wireBookButtons(root) {root.querySelectorAll('[data-open-book]').forEach(b=>b.onclick=()=>openBook(b.dataset.openBook));}
+  function renderDiscover() {
+    const q=$('#search-books').value.trim().toLowerCase(),g=$('#genre-filter').value;
+    const filtered=books.filter(b=>(!g||b.genre===g)&&(!q||[b.title,b.description,b.genre,b.author].some(x=>String(x||'').toLowerCase().includes(q))));
+    $('#discover-books').innerHTML=filtered.length?filtered.map(b=>bookCard(b)).join(''):'<div class="empty"><strong>No matching books yet.</strong><br>Try a different search, or start a new story.</div>';
+    wireBookButtons($('#discover-books'));
+  }
+  async function loadLibrary() {
+    if(!session){$('#library-books').innerHTML='<div class="empty">Sign in to see your books and collaborations.<br><button id="library-signin" style="margin-top:12px">Sign in</button></div>';$('#library-signin').onclick=()=>authModal();return;}
+    $('#library-books').innerHTML='<div class="loading">Loading your library…</div>';
+    const {data:owned,error:e1}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').eq('owner_id',session.user.id).order('created_at',{ascending:false});
+    if(e1){$('#library-books').innerHTML='<div class="empty">'+esc(e1.message)+'</div>';return;}
+    const {data:collabs,error:e2}=await db.from('book_collaborators').select('book_id,role').eq('user_id',session.user.id);
+    let combined=(owned||[]).map(b=>({...b,libraryRole:'Owner'}));
+    if(!e2&&collabs?.length){const missing=collabs.map(c=>c.book_id).filter(id=>!combined.some(b=>b.id===id));if(missing.length){const {data:shared}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').in('id',missing);combined=combined.concat((shared||[]).map(b=>({...b,libraryRole:collabs.find(c=>c.book_id===b.id)?.role||'Writer'}));}}
+    $('#library-books').innerHTML=combined.length?combined.map(b=>bookCard({...b,author:b.libraryRole},true)).join(''):'<div class="empty"><strong>Your shelf is waiting.</strong><br>Create your first book and start writing.<br><button id="empty-create" style="margin-top:12px">Create a book</button></div>';
+    wireBookButtons($('#library-books'));const ec=$('#empty-create');if(ec)ec.onclick=()=>createBookModal();
+  }
+  async function createBookModal() {
+    if(!session){authModal();return;}
+    showModal('Start a new book','<label>Title</label><input name="title" required maxlength="120" placeholder="The title of your story"><label>Genre</label><select name="genre"><option>Fantasy</option><option>Science fiction</option><option>Mystery</option><option>Horror</option><option>Romance</option><option>Adventure</option><option>Drama</option><option>Poetry</option><option>Nonfiction</option><option>Other</option></select><label>Description</label><textarea name="description" maxlength="1200" placeholder="What is this book about?"></textarea><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="is_published" style="width:auto"> Publish it so other readers can discover it</label>',async fd=>{
+      const payload={title:String(fd.get('title')).trim(),genre:String(fd.get('genre')||'Other'),description:String(fd.get('description')||'').trim(),owner_id:session.user.id,is_published:fd.get('is_published')==='on'};
+      const {data,error}=await db.from('books').insert(payload).select().single();if(error)throw error;
+      $('#modal-root').innerHTML='';notify('Book created. Time for chapter one!');await loadBooks();await openBook(data.id);
+    },'Create book');
+  }
+  async function openBook(id) {
+    showPage('book');currentBook=null;currentChapter=null;$('#book-detail').innerHTML='<div class="loading">Opening your book…</div>';
+    if(chatChannel){await db.removeChannel(chatChannel);chatChannel=null;}
+    const {data:book,error}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').eq('id',id).maybeSingle();
+    if(error||!book){$('#book-detail').innerHTML='<div class="empty">This book is unavailable or you do not have permission to read it.</div>';return;}
+    currentBook=book;
+    const {data:chapters,error:chErr}=await db.from('chapters').select('id,title,content,chapter_order,updated_at').eq('book_id',id).order('chapter_order',{ascending:true});
+    if(chErr){$('#book-detail').innerHTML='<div class="empty">Could not load chapters: '+esc(chErr.message)+'</div>';return;}
+    const isOwner=session&&book.owner_id===session.user.id;
+    let isCollab=false;
+    if(session&&!isOwner){const {data:c}=await db.from('book_collaborators').select('role').eq('book_id',id).eq('user_id',session.user.id).maybeSingle();isCollab=!!c;}
+    const canEdit=!!(isOwner||isCollab),isPrivate=!book.is_published;
+    const {data:author}=await db.from('profiles').select('display_name,username').eq('id',book.owner_id).maybeSingle();
+    const {data:collabs}=await db.from('book_collaborators').select('user_id,role').eq('book_id',id);
+    let collabProfiles=[];
+    if(collabs?.length){const {data:p}=await db.from('profiles').select('id,display_name,username').in('id',collabs.map(c=>c.user_id));collabProfiles=p||[];}
+    const chapterItems=(chapters||[]).map((c,i)=>'<div class="chapter-item"><div><strong>'+esc(c.chapter_order+'. '+c.title)+'</strong><div class="small">'+(c.content||'').length+' characters · Updated '+niceDate(c.updated_at)+'</div></div><button class="secondary" data-chapter="'+esc(c.id)+'">Read</button></div>').join('');
+    $('#book-detail').innerHTML='<div class="section-head" style="margin-top:22px"><div><span class="genre">'+esc(book.genre||'Unsorted')+'</span><h1 class="page-title" style="margin-top:14px">'+esc(book.title)+'</h1><p class="small">By '+esc(author?.display_name||author?.username||'Community writer')+' · '+(book.is_published?'Published':'Private draft')+'</p></div>'+(canEdit?'<button id="add-chapter">+ Add chapter</button>':'')+'</div><p style="max-width:780px;color:var(--muted)">'+esc(book.description||'No description yet.')+'</p><div class="detail-layout"><div class="panel"><h2 style="font:700 1.6rem Georgia,serif;margin-top:0">Chapters</h2><div class="chapter-list">'+(chapterItems||'<p class="small">No chapters yet. The first page is yours to write.</p>')+'</div><div id="chapter-reader" class="hidden" style="margin-top:24px;border-top:1px solid var(--line);padding-top:18px"></div>'+(canEdit?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px"><button class="secondary" id="toggle-publish">'+(book.is_published?'Make private':'Publish book')+'</button><button class="ghost" id="invite-writer">Invite collaborator</button></div>':'')+'</div><aside><div class="panel"><h2 style="font:700 1.3rem Georgia,serif;margin-top:0">Writing room</h2><p class="small">Collaborators can coordinate here. Only this book’s owner and collaborators can read its chat.</p><div id="chat-box" class="chat-box"><p class="small">Loading messages…</p></div><form id="chat-form" class="chat-send"><input name="message" maxlength="2000" placeholder="'+(session?'Write a message…':'Sign in to chat')+'" '+(!session?'disabled':'')+' required><button '+(!session?'disabled':'')+'>Send</button></form></div><div class="panel"><h3 style="margin-top:0">On this project</h3><p class="small">Owner: '+esc(author?.display_name||author?.username||'Writer')+'</p><p class="small">Collaborators: '+(collabProfiles.length?collabProfiles.map(p=>esc(p.display_name||p.username||'Writer')).join(', '):'No co-writers yet')+'</p></div></aside></div>';
+    $$('#book-detail [data-chapter]').forEach(btn=>btn.onclick=()=>readChapter(btn.dataset.chapter,chapters,canEdit));
+    if(canEdit) {
+      $('#add-chapter').onclick=()=>chapterModal(id,chapters||[]);
+      $('#toggle-publish').onclick=async()=>{const {error}=await db.from('books').update({is_published:!book.is_published}).eq('id',id).eq('owner_id',session.user.id);if(error)notify(error.message,true);else{notify(book.is_published?'Book is now private.':'Your book is published!');await loadBooks();await openBook(id);}};
+      $('#invite-writer').onclick=()=>inviteModal(id);
+    }
+    await loadChat(id);
+    $('#chat-form').onsubmit=async e=>{e.preventDefault();if(!session)return;const input=e.currentTarget.elements.message;const content=input.value.trim();if(!content)return;const {error}=await db.from('chat_messages').insert({book_id:id,user_id:session.user.id,content});if(error)notify(error.message,true);else input.value='';};
+  }
+  async function readChapter(chapterId,chapters,canEdit) {
+    const ch=(chapters||[]).find(c=>c.id===chapterId);if(!ch)return;currentChapter=ch;
+    const reader=$('#chapter-reader');reader.classList.remove('hidden');
+    reader.innerHTML='<h3>'+esc(ch.title)+'</h3><div class="reader">'+esc(ch.content||'This chapter is still blank.')+'</div>'+(canEdit?'<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button id="edit-chapter">Edit chapter</button><button class="danger" id="delete-chapter">Delete chapter</button></div>':'');
+    if(canEdit){$('#edit-chapter').onclick=()=>chapterModal(currentBook.id,chapters,ch);$('#delete-chapter').onclick=async()=>{if(!confirm('Delete this chapter? This cannot be undone.'))return;const {error}=await db.from('chapters').delete().eq('id',ch.id);if(error)notify(error.message,true);else{notify('Chapter deleted.');await openBook(currentBook.id);}};}
+    reader.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function chapterModal(bookId,chapters,chapter=null) {
+    const body='<label>Chapter title</label><input name="title" maxlength="160" required value="'+esc(chapter?.title||'')+'" placeholder="Chapter 1: The Beginning"><label>Chapter text</label><textarea name="content" rows="12" maxlength="100000" placeholder="Write your chapter here…">'+esc(chapter?.content||'')+'</textarea><p class="small">Your text is saved to your BookWriters database when you press save.</p>';
+    showModal(chapter?'Edit chapter':'Write a chapter',body,async fd=>{
+      const payload={title:String(fd.get('title')).trim(),content:String(fd.get('content')||''),updated_at:new Date().toISOString()};
+      let result;
+      if(chapter)result=await db.from('chapters').update(payload).eq('id',chapter.id).select().single();
+      else result=await db.from('chapters').insert({...payload,book_id:bookId,chapter_order:Math.max(0,...chapters.map(c=>Number(c.chapter_order)||0))+1}).select().single();
+      if(result.error)throw result.error;
+      $('#modal-root').innerHTML='';notify('Chapter saved.');await openBook(bookId);
+    },'Save chapter');
+  }
+  function inviteModal(bookId) {
+    showModal('Invite a co-writer','<label>Writer username</label><input name="username" required maxlength="24" placeholder="writer_username"><p class="small">Ask the writer for their BookWriters username first. Only the book owner can invite collaborators.</p><label>Role</label><select name="role"><option value="writer">Writer — can edit chapters</option><option value="editor">Editor — can edit chapters</option></select>',async fd=>{
+      const username=String(fd.get('username')).trim().replace(/^@/,'');
+      const {data:user,error}=await db.from('profiles').select('id,username').eq('username',username).maybeSingle();if(error)throw error;if(!user)throw new Error('No profile found with that username.');
+      if(user.id===session.user.id)throw new Error('You already own this book.');
+      const {error:insertError}=await db.from('book_collaborators').insert({book_id:bookId,user_id:user.id,role:String(fd.get('role'))});if(insertError)throw insertError;
+      $('#modal-root').innerHTML='';notify('Collaborator added.');await openBook(bookId);
+    },'Invite writer');
+  }
+  async function loadChat(bookId) {
+    const box=$('#chat-box');if(!box)return;
+    const {data:messages,error}=await db.from('chat_messages').select('id,user_id,content,created_at').eq('book_id',bookId).order('created_at',{ascending:true}).limit(100);
+    if(error){box.innerHTML='<p class="small">Chat is only available to the book owner and collaborators. '+esc(error.message)+'</p>';return;}
+    const ids=[...new Set((messages||[]).map(m=>m.user_id))];let names={};
+    if(ids.length){const {data:ps}=await db.from('profiles').select('id,display_name,username').in('id',ids);(ps||[]).forEach(p=>names[p.id]=p.display_name||p.username||'Writer');}
+    box.innerHTML=(messages||[]).map(m=>'<div class="message '+(session&&m.user_id===session.user.id?'mine':'')+'"><b>'+esc(names[m.user_id]||'Writer')+' · '+esc(new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))+'</b><p>'+esc(m.content)+'</p></div>').join('')||'<p class="small">No messages yet. Say hello to your co-writers.</p>';
+    box.scrollTop=box.scrollHeight;
+    if(chatChannel)await db.removeChannel(chatChannel);
+    chatChannel=db.channel('book-chat-'+bookId).on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'book_id=eq.'+bookId},()=>loadChatWithoutRealtime(bookId)).subscribe();
+  }
+  async function loadChatWithoutRealtime(bookId) {
+    const box=$('#chat-box');if(!box||!currentBook||currentBook.id!==bookId)return;
+    const {data:messages,error}=await db.from('chat_messages').select('id,user_id,content,created_at').eq('book_id',bookId).order('created_at',{ascending:true}).limit(100);if(error)return;
+    const ids=[...new Set((messages||[]).map(m=>m.user_id))];let names={};
+    if(ids.length){const {data:ps}=await db.from('profiles').select('id,display_name,username').in('id',ids);(ps||[]).forEach(p=>names[p.id]=p.display_name||p.username||'Writer');}
+    box.innerHTML=(messages||[]).map(m=>'<div class="message '+(session&&m.user_id===session.user.id?'mine':'')+'"><b>'+esc(names[m.user_id]||'Writer')+' · '+esc(new Date(m.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))+'</b><p>'+esc(m.content)+'</p></div>').join('')||'<p class="small">No messages yet.</p>';box.scrollTop=box.scrollHeight;
+  }
+  function renderProfile() {
+    const panel=$('#profile-panel');
+    if(!session){panel.innerHTML='<p class="small">Sign in to create or edit your profile.</p><button id="profile-signin">Sign in</button>';$('#profile-signin').onclick=()=>authModal();return;}
+    panel.innerHTML='<div class="profile-row"><div class="avatar">'+esc((profile?.display_name||profile?.username||'W').slice(0,1).toUpperCase())+'</div><div><h2 style="margin:0">'+esc(profile?.display_name||'Writer')+'</h2><p class="small" style="margin:2px 0">@'+esc(profile?.username||'username')+'</p></div></div><form id="profile-form" style="max-width:650px;margin-top:22px"><label>Display name</label><input name="display_name" maxlength="60" required value="'+esc(profile?.display_name||'')+'"><label>Username</label><input name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required value="'+esc(profile?.username||'')+'"><p class="small">3–24 characters. Letters, numbers and underscores only.</p><label>About you</label><textarea name="bio" maxlength="600" placeholder="What do you like writing?">'+esc(profile?.bio||'')+'</textarea><button style="margin-top:14px">Save profile</button></form>';
+    $('#profile-form').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const payload={id:session.user.id,display_name:String(fd.get('display_name')).trim(),username:String(fd.get('username')).trim().toLowerCase(),bio:String(fd.get('bio')||'').trim()};const {error}=await db.from('profiles').upsert(payload,{onConflict:'id'});if(error){notify(error.message,true);return;}notify('Profile saved.');await loadProfile();renderProfile();};
+  }
+  $$('.navlinks button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
+  $('#hero-create').onclick=createBookModal;$('#library-create').onclick=createBookModal;$('#search-books').addEventListener('input',renderDiscover);$('#genre-filter').addEventListener('change',renderDiscover);$('#refresh-books').onclick=loadBooks;$('#back-books').onclick=()=>showPage('discover');
+  db.auth.onAuthStateChange(async(_event,newSession)=>{session=newSession;await loadProfile();if($('#page-library')&&!$('#page-library').classList.contains('hidden'))loadLibrary();if($('#page-profile')&&!$('#page-profile').classList.contains('hidden'))renderProfile();});
+  async function init(){const {data}=await db.auth.getSession();session=data.session;await loadProfile();await loadBooks();updateAuthUI();}
+  init().catch(err=>{console.error(err);notify('Could not start BookWriters: '+err.message,true);});
+})();
+</script>
+</body>
+</html>
