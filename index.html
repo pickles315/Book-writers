@@ -138,7 +138,7 @@
     if(e1){$('#library-books').innerHTML='<div class="empty">'+esc(e1.message)+'</div>';return;}
     const {data:collabs,error:e2}=await db.from('book_collaborators').select('book_id,role').eq('user_id',session.user.id);
     let combined=(owned||[]).map(b=>({...b,libraryRole:'Owner'}));
-    if(!e2&&collabs?.length){const missing=collabs.map(c=>c.book_id).filter(id=>!combined.some(b=>b.id===id));if(missing.length){const {data:shared}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').in('id',missing);combined=combined.concat((shared||[]).map(b=>({...b,libraryRole:collabs.find(c=>c.book_id===b.id)?.role||'Writer'}));}}
+    if(!e2&&collabs?.length){const missing=collabs.map(c=>c.book_id).filter(id=>!combined.some(b=>b.id===id));if(missing.length){const {data:shared}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').in('id',missing);combined=combined.concat((shared||[]).map(b=>({...b,libraryRole:collabs.find(c=>c.book_id===b.id)?.role||'Writer'})));}}
     $('#library-books').innerHTML=combined.length?combined.map(b=>bookCard({...b,author:b.libraryRole},true)).join(''):'<div class="empty"><strong>Your shelf is waiting.</strong><br>Create your first book and start writing.<br><button id="empty-create" style="margin-top:12px">Create a book</button></div>';
     wireBookButtons($('#library-books'));const ec=$('#empty-create');if(ec)ec.onclick=()=>createBookModal();
   }
