@@ -10,7 +10,7 @@ BookWriters is a static website hosted on GitHub Pages, using Supabase for accou
 ## 1. Finish the Supabase setup
 
 1. Open your Supabase project and go to **SQL Editor**.
-2. Open `supabase-fix.sql` in this repository, copy its contents, paste them into a new SQL query, and run it.
+2. Open `supabase-fix.sql` in this repository, copy its contents, paste them into a new SQL query, and run it. It replaces existing RLS policies on the five app tables (it does not delete table data). If you added your own custom policies, review the script first.
 3. In **Authentication → URL Configuration**, set the Site URL to your GitHub Pages URL, for example `https://pickles315.github.io/Book-writers/`. Add that URL to the Redirect URLs list too.
 4. In **Authentication → Providers → Email**, review whether email confirmation is enabled. If it is enabled, new users must confirm their email before signing in.
 5. To turn on live chat updates, open **Database → Publications** and make sure `chat_messages` is included in the `supabase_realtime` publication. The table must already have RLS enabled.
@@ -28,7 +28,7 @@ The SQL fix assumes the five tables from the original setup already exist: `prof
 
 - The website uses a **Supabase publishable key** in the browser. Publishable keys are designed for client-side use, but only when Row Level Security is correctly configured.
 - **Never put a Supabase secret key, service-role key, or database password in `index.html` or any public GitHub file.**
-- The database contains writing drafts and messages. Review the RLS policies before inviting people to use the site. Do not store sensitive personal information in public profiles.
+- The database contains writing drafts and messages. Public profile fields, published books, and published chapters are visible to anyone. Private drafts and project chat should only be accessible to the owner and collaborators. Do not store sensitive personal information in public profiles.
 - Published books and their chapters are intended to be readable by anyone. Private drafts and project chat should only be accessible to the owner and collaborators.
 - The first version supports sign-up/sign-in, public book discovery, book creation, chapter editing, profiles, collaborator invitations by username, and project chat. Live chat requires the Realtime publication step above.
 
