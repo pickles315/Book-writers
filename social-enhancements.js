@@ -7,8 +7,8 @@
   const toast=(m,bad=false)=>{let n=$('#bw-toast');if(!n){n=document.createElement('div');n.id='bw-toast';n.className='notice';n.style.cssText='position:fixed;right:16px;bottom:16px;z-index:200;max-width:min(440px,calc(100vw - 32px));box-shadow:0 8px 30px #0003';document.body.appendChild(n)}n.className='notice'+(bad?' error':'');n.textContent=m;clearTimeout(n._t);n._t=setTimeout(()=>n.remove(),4500)};
   async function user(){const {data}=await db.auth.getUser();return data.user}
   async function currentBook(){
-    const title=$('#book-detail .page-title')?.textContent?.trim();if(!title)return null;
-    const {data,error}=await db.from('books').select('id,title,owner_id,cover_url').eq('title',title).limit(1).maybeSingle();
+    const detail=$('#book-detail'),id=detail?.dataset.bookId,title=$('#book-detail .page-title')?.textContent?.trim();if(!title||!id)return null;
+    const {data,error}=await db.from('books').select('id,title,owner_id,cover_url').eq('id',id).maybeSingle();
     if(error||!data)return null;activeId=data.id;$('#book-detail').dataset.bookId=data.id;return data;
   }
   async function toggle(table,where,insert){
@@ -48,11 +48,29 @@
     const discover=$('#page-discover');if(!discover||$('#bw-writer-search'))return;
     const panel=document.createElement('section');panel.className='panel';panel.style.marginTop='28px';panel.innerHTML='<div class="section-head" style="margin-top:0"><div><h2 style="font:700 1.8rem Georgia,serif;margin:0">Find writers</h2><p>Search pen names and bios to find your next collaborator.</p></div></div><div class="toolbar"><input id="bw-writer-search" placeholder="Search usernames, names, and bios…" aria-label="Search writers"><button id="bw-search-writers">Search writers</button></div><div id="bw-writer-results" class="grid"></div>';
     discover.appendChild(panel);
-    const search=async()=>{const q=$('#bw-writer-search').value.trim();const out=$('#bw-writer-results');if(q.length<2){out.innerHTML='<div class="empty">Enter at least 2 characters to search.</div>';return}out.innerHTML='<div class="loading">Searching writers…</div>';const {data,error}=await db.from('profiles').select('id,username,display_name,bio').or('username.ilike.%'+q+'%,display_name.ilike.%'+q+'%,bio.ilike.%'+q+'%').limit(20);if(error){out.innerHTML='<div class="empty">'+esc(error.message)+'</div>';return}out.innerHTML=(data||[]).map(p=>'<article class="book"><div class="bw-cover-placeholder">'+esc((p.display_name||p.username||'W').slice(0,1).toUpperCase())+'</div><h3>'+esc(p.display_name||p.username||'Writer')+'</h3><p>@'+esc(p.username||'writer')+'<br>'+esc(p.bio||'No bio yet.')+'</p><div class="book-foot"><span class="author">BookWriters author</span><button class="secondary" data-follow-writer="'+esc(p.id)+'">Follow</button></div></article>').join('')||'<div class="empty">No writers found.</div>';$$('[data-follow-writer]',out).forEach(b=>b.onclick=async()=>{const u=await user();if(!u){toast('Sign in to follow writers.');return}if(u.id===b.dataset.followWriter){toast('You cannot follow yourself.');return}const v=await toggle('writer_follows',{follower_id:u.id,followed_id:b.dataset.followWriter},{follower_id:u.id,followed_id:b.dataset.followWriter});if(v!==undefined)b.textContent=v?'Following':'Follow'});};
+    const search=async()=>{const q=$('#bw-writer-search').value.trim();const out=$('#bw-writer-results');if(q.length<2){out.innerHTML='<div class="empty">Enter at least 2 characters to search.</div>';return}out.innerHTML='<div class="loading">Searching writers…</div>';const term=q.replace(/[%,_]/g,' ').trim();if(term.length<2){out.innerHTML='<div class="empty">Enter at least 2 ordinary characters to search.</div>';return}const pattern='%'+term+'%';const results=await Promise.all(['username','display_name','bio'].map(field=>db.from('profiles').select('id,username,display_name,bio').ilike(field,pattern).limit(20)));const failed=results.find(r=>r.error);if(failed){out.innerHTML='<div class="empty">'+esc(failed.error.message)+'</div>';return}const data=[...new Map(results.flatMap(r=>r.data||[]).map(p=>[p.id,p])).values()].slice(0,30);out.innerHTML=data.map(p=>'<article class="book"><div class="bw-cover-placeholder">'+esc((p.display_name||p.username||'W').slice(0,1).toUpperCase())+'</div><h3>'+esc(p.display_name||p.username||'Writer')+'</h3><p>@'+esc(p.username||'writer')+'<br>'+esc(p.bio||'No bio yet.')+'</p><div class="book-foot"><span class="author">BookWriters author</span><button class="secondary" data-follow-writer="'+esc(p.id)+'">Follow</button></div></article>').join('')||'<div class="empty">No writers found.</div>';$('[data-follow-writer]',out).forEach(b=>b.onclick=async()=>{const u=await user();if(!u){toast('Sign in to follow writers.');return}if(u.id===b.dataset.followWriter){toast('You cannot follow yourself.');return}const v=await toggle('writer_follows',{follower_id:u.id,followed_id:b.dataset.followWriter},{follower_id:u.id,followed_id:b.dataset.followWriter});if(v!==undefined)b.textContent=v?'Following':'Follow'});};
     $('#bw-search-writers').onclick=search;$('#bw-writer-search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();search()}});
   }
   function decorateCovers(){
-    $$('.book').forEach(async card=>{if(card.dataset.bwCoverDone)return;const title=$('h3',card)?.textContent?.trim();if(!title)return;card.dataset.bwCoverDone='1';const {data}=await db.from('books').select('cover_url').eq('title',title).limit(1).maybeSingle();if(data?.cover_url){const im=document.createElement('img');im.className='bw-cover';im.src=data.cover_url;im.alt='Cover for '+title;im.loading='lazy';im.onerror=()=>im.remove();const placeholder=$('.bw-cover-placeholder',card);if(placeholder)placeholder.replaceWith(im);else card.insertBefore(im,card.firstChild)}});
+    $('.book').forEach(async card=>{
+      if(card.dataset.bwCoverDone)return;
+      const id=$('[data-open-book]',card)?.dataset.openBook;
+      const title=$('h3',card)?.textContent?.trim();
+      if(!id||!title)return;
+      card.dataset.bwCoverDone='1';
+      const {data}=await db.from('books').select('cover_url').eq('id',id).maybeSingle();
+      if(data?.cover_url){
+        const im=document.createElement('img');im.className='bw-cover';im.src=data.cover_url;im.alt='Cover for '+title;im.loading='lazy';im.referrerPolicy='no-referrer';im.onerror=()=>im.remove();
+        const placeholder=$('.bw-cover-placeholder',card);if(placeholder)placeholder.replaceWith(im);else card.insertBefore(im,card.firstChild);
+      }
+    });
+    const detail=$('#book-detail'),id=detail?.dataset.bookId,head=$('.section-head',detail);
+    if(id&&head&&!head.querySelector('.bw-detail-cover')){
+      db.from('books').select('cover_url').eq('id',id).maybeSingle().then(({data})=>{
+        if(!data?.cover_url||!head.isConnected||head.querySelector('.bw-detail-cover'))return;
+        const im=document.createElement('img');im.className='bw-cover bw-detail-cover';im.style.maxWidth='180px';im.src=data.cover_url;im.alt='Book cover';im.loading='lazy';im.referrerPolicy='no-referrer';im.onerror=()=>im.remove();head.insertBefore(im,head.firstChild);
+      });
+    }
   }
   function start(){
     if(!db)return;
