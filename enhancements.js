@@ -91,7 +91,7 @@
       const head=$('.section-head',detail);if(head)head.insertAdjacentElement('afterend',tools);else detail.prepend(tools);
       tools.querySelector('[data-bw-export="txt"]').onclick=()=>runExport('txt');
       tools.querySelector('[data-bw-export="epub"]').onclick=()=>runExport('epub');
-      tools.querySelector('[data-bw-print]').onclick=()=>window.print();
+      tools.querySelector('[data-bw-print]').onclick=()=>runPrint();
     }
     // Add lightweight word count and fullscreen writing tools to the existing chapter editor modal.
     const textarea=$('#modal-form textarea[name="content"]');
@@ -107,6 +107,20 @@
     }
   }
   let activeId=null;
+  async function runPrint(){
+    if(!activeId){toast('Open a book first, then try printing.',true);return;}
+    try{
+      const {book,chapters,author}=await getBookData(activeId);
+      $('#bw-print-root')?.remove();$('#bw-print-style')?.remove();
+      const root=document.createElement('main');root.id='bw-print-root';
+      root.innerHTML='<h1>'+esc(book.title)+'</h1><p class="bw-print-by">By '+esc(author)+'</p><p>'+esc(book.description||'')+'</p>'+chapters.map((c,i)=>'<section class="bw-print-chapter"><h2>Chapter '+(i+1)+': '+esc(c.title)+'</h2>'+String(c.content||'').split(/\r?\n/).map(line=>'<p>'+esc(line)+'</p>').join('')+'</section>').join('');
+      const style=document.createElement('style');style.id='bw-print-style';style.textContent='@media screen{#bw-print-root{display:none}}@media print{body>*:not(#bw-print-root){display:none!important}#bw-print-root{display:block!important;max-width:760px;margin:0 auto;padding:0;color:#111;background:#fff;font:12pt/1.6 Georgia,serif}#bw-print-root h1{text-align:center;margin:20vh 0 1em}#bw-print-root .bw-print-by{text-align:center;margin-bottom:3em}#bw-print-root .bw-print-chapter{break-before:page;page-break-before:always}#bw-print-root h2{break-after:avoid-page}#bw-print-root p{white-space:pre-wrap}}';
+      document.head.appendChild(style);document.body.appendChild(root);
+      const cleanup=()=>{root.remove();style.remove();window.removeEventListener('afterprint',cleanup)};
+      window.addEventListener('afterprint',cleanup,{once:true});
+      window.print();setTimeout(cleanup,60000);
+    }catch(e){console.error(e);toast('Print preparation failed: '+(e.message||'unknown error'),true);}
+  }
   async function runExport(type){
     if(!activeId){toast('Open a book first, then try exporting.',true);return;}
     try{toast('Preparing your export…');if(type==='epub')await exportEpub(activeId);else await exportTxt(activeId);}
