@@ -1,8 +1,8 @@
 (() => {
 'use strict';
 const URL='https://ysomxdoicbfmgbveghkr.supabase.co',KEY='sb_publishable_1VtpTU1pGn9yLn6Q_POtsw_Kp5ULXv6',BUCKET='epub-library';
-const db=window.supabase?.createClient(URL,KEY);if(!db)return;
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let db=null;
+const $=s=>document.querySelector(s),$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let user=null,items=[],page,reader=null;
 const toast=(m,bad=false)=>{let n=$('#epub-toast');if(!n){n=document.createElement('div');n.id='epub-toast';n.style.cssText='position:fixed;right:16px;bottom:16px;z-index:200;max-width:min(440px,calc(100vw - 32px))';document.body.append(n)}n.className='notice'+(bad?' error':'');n.textContent=m;clearTimeout(n.t);n.t=setTimeout(()=>n.remove(),5500)};
@@ -70,5 +70,27 @@ async function removeBook(id){const x=items.find(b=>b.id===id);if(!x||x.owner_id
 async function readBook(id){const x=items.find(b=>b.id===id);if(!x)return;if(reader){try{reader.destroy()}catch{}reader=null}const panel=$('#epub-reader-panel');panel.innerHTML='<div class="epub-reader"><div class="epub-reader-controls"><button class="secondary" id="reader-close">← Back</button><strong>'+esc(x.title)+'</strong></div><p class="small">Age rating: '+esc(x.age_rating)+' · '+esc(x.genre)+'</p><div id="epub-frame" class="epub-frame"><p class="loading">Opening book…</p></div><div class="epub-reader-controls"><button class="secondary" id="reader-prev">Previous page</button><span id="reader-loc" class="small"></span><button class="secondary" id="reader-next">Next page</button></div></div>';
 $('#reader-close').onclick=()=>{if(reader){try{reader.destroy()}catch{}reader=null}panel.innerHTML=''};
 try{const file=await url(x.epub_path);if(!file)throw Error('Cannot access EPUB file.');if(!window.ePub)await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js';s.onload=resolve;s.onerror=()=>reject(Error('Could not load EPUB reader.'));document.head.append(s)});const frame=$('#epub-frame');frame.innerHTML='';reader=window.ePub(file).renderTo(frame,{width:'100%',height:'100%',flow:'paginated',spread:'auto'});await reader.display();reader.on('relocated',l=>{const el=$('#reader-loc');if(el)el.textContent=l?.start?.displayed?'Page '+l.start.displayed.page+' of '+l.start.displayed.total:''});$('#reader-prev').onclick=()=>reader.prev();$('#reader-next').onclick=()=>reader.next();panel.scrollIntoView({behavior:'smooth',block:'start'})}catch(err){console.error(err);$('#epub-frame').innerHTML='<p class="notice error">Could not open this EPUB: '+esc(err.message||'Invalid EPUB file')+'</p>'}}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+async function boot(){
+  const showBootError=message=>{
+    const main=$('main.wrap');
+    if(main)main.innerHTML='<section class="hero"><div class="hero-main"><div class="eyebrow">BookWriters</div><h1>We couldn’t start the library.</h1><p>'+esc(message)+'</p><button type="button" onclick="location.reload()">Try again</button></div></section>';
+  };
+  try{
+    if(!window.supabase){
+      await new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.onload=()=>window.supabase?resolve():reject(new Error('The sign-in service did not load.'));
+        script.onerror=()=>reject(new Error('Could not load the sign-in service. Check your connection and reload.'));
+        document.head.append(script);
+      });
+    }
+    db=window.supabase.createClient(URL,KEY);
+    init();
+  }catch(error){
+    console.error('BookWriters startup failed:',error);
+    showBootError(error.message||'Please reload and try again.');
+  }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
