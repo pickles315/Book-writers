@@ -68,3 +68,10 @@ After applying the migration and deploying the branch:
 ## Notes
 
 The browser draft recovery feature stores edited chapter text in that browser's local storage on that device. Clear browser storage if you want to remove those local copies. This branch is a proposed upgrade; review and test it before merging into `main`.
+
+
+## EPUB publishing library
+
+The EPUB Library adds a reader-facing publishing flow: upload an `.epub` (up to 100 MB), choose a PNG cover (up to 5 MB), set a genre and community age rating, view a book detail page with cover/author/description/ratings, and read published EPUBs in the browser. The original writing interface remains in the code, but its existing book content is cleared by the migration.
+
+Before using it, review and run `epub-library-migration.sql` in the Supabase SQL Editor. It creates the `epub_books` table, a private `epub-library` Storage bucket, and row-level security policies. **Important: the migration also permanently deletes all legacy rows from `books`, `chapters`, `book_collaborators`, and `chat_messages`** as requested for this one-person site. It keeps user profiles/accounts and does not delete EPUB entries. Back up anything you want to keep before running it. Do not disable RLS or expose a Supabase service-role key. EPUB rendering uses epub.js from jsDelivr. Age ratings are user-provided labels and are not content moderation or verified ratings.
