@@ -1,4 +1,4 @@
--- EPUB publishing catalogue for BookWriters. Existing writing books are untouched.
+-- EPUB publishing catalogue for BookWriters. Legacy writing content is reset at the end.
 create extension if not exists pgcrypto;
 create table if not exists public.epub_books (
  id uuid primary key default gen_random_uuid(),
