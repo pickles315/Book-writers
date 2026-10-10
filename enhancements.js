@@ -158,7 +158,7 @@
         if(uid){const snap=await db.from('chapter_versions').insert({chapter_id:chapterId,editor_id:uid,title:current.title,content:current.content||''});if(snap.error){toast('Could not preserve the current version: '+snap.error.message,true);return;}}
         const {error:updateErr}=await db.from('chapters').update({title:version.title,content:version.content,updated_at:new Date().toISOString()}).eq('id',chapterId);
         if(updateErr){toast('Restore failed: '+updateErr.message,true);return;}
-        toast('Chapter version restored.');location.reload();
+        const heading=$('h3',reader),body=$('.reader',reader);if(heading)heading.textContent=version.title;if(body)body.textContent=version.content||'This chapter is still blank.';toast('Chapter version restored.');panel.hidden=true;
       });
     };
   }
