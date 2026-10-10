@@ -50,10 +50,11 @@ if(!(epub instanceof File)||!epub.name.toLowerCase().endsWith('.epub')||epub.siz
 if(!(cover instanceof File)||cover.type!=='image/png'||cover.size===0||cover.size>5*1024*1024){toast('Choose a PNG cover no larger than 5 MB.',true);return}
 btn.disabled=true;status.textContent='Creating book record…';const id=crypto.randomUUID(),base=id+'/'+slug(fd.get('title')),ep=base+'.epub',cp=base+'.png';
 try{
-const row=await db.from('epub_books').insert({id,owner_id:user.id,title:String(fd.get('title')).trim(),description:String(fd.get('description')||'').trim(),genre:String(fd.get('genre')),age_rating:String(fd.get('age_rating')),epub_path:ep,cover_path:cp,is_published:fd.get('published')==='on'});
+const row=await db.from('epub_books').insert({id,owner_id:user.id,title:String(fd.get('title')).trim(),description:String(fd.get('description')||'').trim(),genre:String(fd.get('genre')),age_rating:String(fd.get('age_rating')),epub_path:ep,cover_path:cp,is_published:false});
 if(row.error)throw row.error;
 status.textContent='Uploading EPUB…';const a=await db.storage.from(BUCKET).upload(ep,epub,{contentType:'application/epub+zip'});if(a.error)throw a.error;
 status.textContent='Uploading cover…';const c=await db.storage.from(BUCKET).upload(cp,cover,{contentType:'image/png'});if(c.error)throw c.error;
+const pub=await db.from('epub_books').update({is_published:fd.get('published')==='on'}).eq('id',id).eq('owner_id',user.id);if(pub.error)throw pub.error;
 modal.remove();toast('EPUB uploaded successfully.');await load()
 }catch(err){console.error(err);await db.storage.from(BUCKET).remove([ep,cp]);await db.from('epub_books').delete().eq('id',id).eq('owner_id',user.id);btn.disabled=false;status.textContent='';toast('Upload failed: '+(err.message||'Unknown error'),true)}
 }}
