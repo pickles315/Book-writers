@@ -1,43 +1,70 @@
 # BookWriters
 
-BookWriters is a static website hosted on GitHub Pages, using Supabase for accounts and persistent data.
+BookWriters is a static writing and collaboration website built with HTML, CSS, JavaScript, and Supabase.
+
+## Features
+
+- Account sign-up/sign-in, writer profiles, public book discovery, and a personal library.
+- Books, chapters, collaborator invitations by username, owner-managed collaborator removal, and project chat.
+- Light/dark theme toggle.
+- Chapter word and character counts, fullscreen editing, and Ctrl/Cmd+S save shortcut.
+- Local browser draft recovery for an edited chapter.
+- TXT and EPUB export, plus whole-book print / Save as PDF with chapter page breaks.
+- Book likes, bookmarks, writer follows, writer search, and optional cover images.
+- Chapter version snapshots and a version-history restore panel.
 
 ## Files
 
-- `index.html` — the website (HTML, CSS, and JavaScript in one file).
-- `supabase-fix.sql` — signup-trigger and row-level security fixes for the database schema previously created for this project.
+- `index.html` — main app and existing book-writing/collaboration features.
+- `enhancements.js` — editor utilities, theme, exports, draft recovery, and chapter version history.
+- `social-enhancements.js` — writer search, likes, bookmarks, follows, and cover images.
+- `supabase-fix.sql` — original schema/policy repair script for an existing installation.
+- `feature-migration.sql` — adds the cover URL column, social tables, chapter-version table, and their row-level security policies.
 
-## 1. Finish the Supabase setup
+## Supabase setup
 
 1. Open your Supabase project and go to **SQL Editor**.
-2. Open `supabase-fix.sql` in this repository, copy its contents, paste them into a new SQL query, and run it. It replaces existing RLS policies on the five app tables (it does not delete table data). If you added your own custom policies, review the script first.
-3. In **Authentication → URL Configuration**, set the Site URL to your GitHub Pages URL, for example `https://pickles315.github.io/Book-writers/`. Add that URL to the Redirect URLs list too.
-4. In **Authentication → Providers → Email**, review whether email confirmation is enabled. If it is enabled, new users must confirm their email before signing in.
-5. To turn on live chat updates, open **Database → Publications** and make sure `chat_messages` is included in the `supabase_realtime` publication. The table must already have RLS enabled.
+2. If you have not already applied the original app setup, review and run `supabase-fix.sql`. It assumes the original tables already exist; it is not a fresh-install schema.
+3. Review `feature-migration.sql`, then run it in the SQL Editor. It is designed to be re-runnable and does not delete books or chapters. It enables likes, bookmarks, follows, cover images, and chapter version history.
+4. In **Authentication → URL Configuration**, set the Site URL to your deployed GitHub Pages URL and add the same URL to Redirect URLs.
+5. In **Authentication → Providers → Email**, check whether email confirmation is enabled. If enabled, new users must confirm their email before signing in.
+6. For live chat updates, open **Database → Publications** and ensure `chat_messages` is included in the `supabase_realtime` publication.
 
-The SQL fix assumes the five tables from the original setup already exist: `profiles`, `books`, `book_collaborators`, `chapters`, and `chat_messages`. It does not create those tables from scratch.
+The original app schema is expected to contain `profiles`, `books`, `book_collaborators`, `chapters`, and `chat_messages`. The feature migration does not create these original tables.
 
-## 2. Turn on GitHub Pages
+## GitHub Pages deployment
 
-1. Open the repository's **Settings → Pages**.
-2. Under **Build and deployment**, select **Deploy from a branch**.
-3. Select branch `main` and folder `/ (root)`, then save.
-4. Wait for the Pages deployment to finish. The site URL will be shown on that page.
+1. Open repository **Settings → Pages**.
+2. Choose **Deploy from a branch**.
+3. Select `main` and folder `/ (root)`, then save.
+4. Wait for the deployment to complete. GitHub shows the published site URL on the Pages settings screen.
 
-## 3. Important security notes
+The app loads Supabase's browser client and JSZip from their public CDNs. EPUB files are generated locally in the browser; TXT and print/PDF use built-in browser features.
 
-- The website uses a **Supabase publishable key** in the browser. Publishable keys are designed for client-side use, but only when Row Level Security is correctly configured.
-- **Never put a Supabase secret key, service-role key, or database password in `index.html` or any public GitHub file.**
-- The database contains writing drafts and messages. Public profile fields, published books, and published chapters are visible to anyone. Private drafts and project chat should only be accessible to the owner and collaborators. Do not store sensitive personal information in public profiles.
-- Published books and their chapters are intended to be readable by anyone. Private drafts and project chat should only be accessible to the owner and collaborators.
-- The first version supports sign-up/sign-in, public book discovery, book creation, chapter editing, profiles, collaborator invitations by username, and project chat. Live chat requires the Realtime publication step above.
+## Security notes
 
-## 4. Test the first version
+- A Supabase publishable key is intended for client-side use only when Row Level Security (RLS) is configured correctly.
+- Never put a Supabase secret/service-role key or database password in any public repository file.
+- Review RLS policies before deployment, especially if you have customized your original database schema.
+- Public profiles and published books are discoverable. Do not put private or sensitive personal information in public profile fields.
+- Private drafts and project chat should remain accessible only to the owner and authorized collaborators. Test this using separate accounts.
+- Cover images must be reachable via HTTPS. Only a book owner can change that book's cover through the UI.
 
-1. Open the deployed Pages URL.
-2. Create an account and confirm your email if requested.
-3. Edit your profile.
-4. Create a book, add a chapter, and test making it public/private.
-5. Create a second test account and invite it by its BookWriters username to test collaboration and chat.
+## Test checklist
 
-If something fails, open the browser's developer console and check the error message. Supabase errors usually point to a missing table, a policy, or an authentication URL setting.
+After applying the migration and deploying the branch:
+
+1. Sign in and edit a profile.
+2. Create a book and chapter, then test publishing and making it private.
+3. Edit a chapter, save it, open **Version history**, and restore a previous version.
+4. Type in an existing chapter and close/reopen the editor without saving to test local draft recovery.
+5. Export a book as TXT and EPUB; open the EPUB in a reader that supports EPUB 3.
+6. Print a book or choose **Save as PDF** in the browser print dialog.
+7. Like and bookmark a published book, follow a writer, search for writers, and set/remove a cover image.
+8. Use a second account to test collaborator permissions and project chat.
+9. Confirm that a non-owner cannot edit a book's cover or read a private book they were not invited to.
+10. Check the browser console and Supabase logs if a feature fails; common causes are a missing migration, RLS policy, or auth URL setting.
+
+## Notes
+
+The browser draft recovery feature stores edited chapter text in that browser's local storage on that device. Clear browser storage if you want to remove those local copies. This branch is a proposed upgrade; review and test it before merging into `main`.
