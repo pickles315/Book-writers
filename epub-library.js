@@ -2,7 +2,7 @@
 'use strict';
 const URL='https://ysomxdoicbfmgbveghkr.supabase.co',KEY='sb_publishable_1VtpTU1pGn9yLn6Q_POtsw_Kp5ULXv6',BUCKET='epub-library';
 let db=null;
-const $=s=>document.querySelector(s),$=s=>[...document.querySelectorAll(s)];
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let user=null,items=[],page,reader=null;
 const toast=(m,bad=false)=>{let n=$('#epub-toast');if(!n){n=document.createElement('div');n.id='epub-toast';n.style.cssText='position:fixed;right:16px;bottom:16px;z-index:200;max-width:min(440px,calc(100vw - 32px))';document.body.append(n)}n.className='notice'+(bad?' error':'');n.textContent=m;clearTimeout(n.t);n.t=setTimeout(()=>n.remove(),5500)};
