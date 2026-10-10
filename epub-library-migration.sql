@@ -36,3 +36,12 @@ create policy "EPUB files readable by book readers" on storage.objects for selec
 create policy "Owners upload EPUB files" on storage.objects for insert to authenticated with check(bucket_id='epub-library' and exists(select 1 from public.epub_books b where b.id::text=(storage.foldername(name))[1] and b.owner_id=(select auth.uid())));
 create policy "Owners update EPUB files" on storage.objects for update to authenticated using(bucket_id='epub-library' and exists(select 1 from public.epub_books b where b.id::text=(storage.foldername(name))[1] and b.owner_id=(select auth.uid()))) with check(bucket_id='epub-library' and exists(select 1 from public.epub_books b where b.id::text=(storage.foldername(name))[1] and b.owner_id=(select auth.uid())));
 create policy "Owners delete EPUB files" on storage.objects for delete to authenticated using(bucket_id='epub-library' and exists(select 1 from public.epub_books b where b.id::text=(storage.foldername(name))[1] and b.owner_id=(select auth.uid())));
+
+-- Requested one-time reset: remove the old chapter-writing catalogue and its
+-- dependent content because this site is being switched to EPUB publishing.
+-- This preserves user profiles/accounts and does not delete newly uploaded epub_books.
+-- IMPORTANT: this permanently deletes all rows from these legacy content tables.
+delete from public.chat_messages;
+delete from public.chapters;
+delete from public.book_collaborators;
+delete from public.books;
