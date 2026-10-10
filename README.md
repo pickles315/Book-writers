@@ -5,7 +5,7 @@ BookWriters is a static website hosted on GitHub Pages, using Supabase for accou
 ## Files
 
 - `index.html` — the website (HTML, CSS, and JavaScript in one file).
-- `supabase-fix.sql` — signup-trigger and row-level security fixes for the database schema previously created for this project.
+- `supabase-fix.sql` — signup-trigger and row-level security fixes for the database schema previously created for this project.\n- `enhancements.js` — dark mode, word/character counts, fullscreen chapter editor, print/PDF flow, and TXT/EPUB export.\n- `social-enhancements.js` — writer search, book likes, bookmarks, follows, and cover image support.\n- `feature-migration.sql` — optional database tables/column and RLS policies required for likes, bookmarks, follows, cover images, and chapter-version storage.
 
 ## 1. Finish the Supabase setup
 
@@ -17,14 +17,14 @@ BookWriters is a static website hosted on GitHub Pages, using Supabase for accou
 
 The SQL fix assumes the five tables from the original setup already exist: `profiles`, `books`, `book_collaborators`, `chapters`, and `chat_messages`. It does not create those tables from scratch.
 
-## 2. Turn on GitHub Pages
+## 2. Apply the feature migration (for social features)\n\nTo enable likes, bookmarks, follows, book cover URLs, and the chapter-version storage table, open Supabase **SQL Editor**, review `feature-migration.sql`, and run it. This migration adds tables/columns and policies; it does not remove existing books or chapters. The chapter-version table is currently a storage foundation and does not yet expose a full restore UI.\n\nEPUB export is generated in the browser. It uses JSZip from jsDelivr; TXT export and browser print work without an EPUB reader.\n\n## 3. Turn on GitHub Pages
 
 1. Open the repository's **Settings → Pages**.
 2. Under **Build and deployment**, select **Deploy from a branch**.
 3. Select branch `main` and folder `/ (root)`, then save.
 4. Wait for the Pages deployment to finish. The site URL will be shown on that page.
 
-## 3. Important security notes
+## 4. Important security notes
 
 - The website uses a **Supabase publishable key** in the browser. Publishable keys are designed for client-side use, but only when Row Level Security is correctly configured.
 - **Never put a Supabase secret key, service-role key, or database password in `index.html` or any public GitHub file.**
@@ -32,7 +32,7 @@ The SQL fix assumes the five tables from the original setup already exist: `prof
 - Published books and their chapters are intended to be readable by anyone. Private drafts and project chat should only be accessible to the owner and collaborators.
 - The first version supports sign-up/sign-in, public book discovery, book creation, chapter editing, profiles, collaborator invitations by username, and project chat. Live chat requires the Realtime publication step above.
 
-## 4. Test the first version
+## 5. Test the first version
 
 1. Open the deployed Pages URL.
 2. Create an account and confirm your email if requested.
