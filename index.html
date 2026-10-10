@@ -151,9 +151,9 @@
     },'Create book');
   }
   async function openBook(id) {
-    showPage('book');currentBook=null;currentChapter=null;$('#book-detail').innerHTML='<div class="loading">Opening your book…</div>';
+    showPage('book');currentBook=null;currentChapter=null;$('#book-detail').dataset.bookId=id;$('#book-detail').innerHTML='<div class="loading">Opening your book…</div>';
     if(chatChannel){await db.removeChannel(chatChannel);chatChannel=null;}
-    const {data:book,error}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at').eq('id',id).maybeSingle();
+    const {data:book,error}=await db.from('books').select('id,title,description,genre,owner_id,is_published,created_at,cover_url').eq('id',id).maybeSingle();
     if(error||!book){$('#book-detail').innerHTML='<div class="empty">This book is unavailable or you do not have permission to read it.</div>';return;}
     currentBook=book;
     const {data:chapters,error:chErr}=await db.from('chapters').select('id,title,content,chapter_order,updated_at').eq('book_id',id).order('chapter_order',{ascending:true});
@@ -179,13 +179,13 @@
   }
   async function readChapter(chapterId,chapters,canEdit) {
     const ch=(chapters||[]).find(c=>c.id===chapterId);if(!ch)return;currentChapter=ch;
-    const reader=$('#chapter-reader');reader.classList.remove('hidden');
+    const reader=$('#chapter-reader');reader.dataset.chapterId=ch.id;reader.classList.remove('hidden');
     reader.innerHTML='<h3>'+esc(ch.title)+'</h3><div class="reader">'+esc(ch.content||'This chapter is still blank.')+'</div>'+(canEdit?'<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button id="edit-chapter">Edit chapter</button><button class="danger" id="delete-chapter">Delete chapter</button></div>':'');
     if(canEdit){$('#edit-chapter').onclick=()=>chapterModal(currentBook.id,chapters,ch);$('#delete-chapter').onclick=async()=>{if(!confirm('Delete this chapter? This cannot be undone.'))return;const {error}=await db.from('chapters').delete().eq('id',ch.id);if(error)notify(error.message,true);else{notify('Chapter deleted.');await openBook(currentBook.id);}};}
     reader.scrollIntoView({behavior:'smooth',block:'start'});
   }
   function chapterModal(bookId,chapters,chapter=null) {
-    const body='<label>Chapter title</label><input name="title" maxlength="160" required value="'+esc(chapter?.title||'')+'" placeholder="Chapter 1: The Beginning"><label>Chapter text</label><textarea name="content" rows="12" maxlength="100000" placeholder="Write your chapter here…">'+esc(chapter?.content||'')+'</textarea><p class="small">Your text is saved to your BookWriters database when you press save.</p>';
+    const body=(chapter?'<input type="hidden" name="chapter_id" value="'+esc(chapter.id)+'">':'')+'<label>Chapter title</label><input name="title" maxlength="160" required value="'+esc(chapter?.title||'')+'" placeholder="Chapter 1: The Beginning"><label>Chapter text</label><textarea name="content" rows="12" maxlength="100000" placeholder="Write your chapter here…">'+esc(chapter?.content||'')+'</textarea><p class="small">Your text is saved to your BookWriters database when you press save.</p>';
     showModal(chapter?'Edit chapter':'Write a chapter',body,async fd=>{
       const payload={title:String(fd.get('title')).trim(),content:String(fd.get('content')||''),updated_at:new Date().toISOString()};
       let result;
