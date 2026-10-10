@@ -41,7 +41,7 @@
 
   async function getBookData(bookId) {
     if(!db)throw new Error('Database client is unavailable.');
-    const {data:book,error}=await db.from('books').select('id,title,description,genre,owner_id,is_published').eq('id',bookId).single();
+    const {data:book,error}=await db.from('books').select('id,title,description,genre,owner_id,is_published,cover_url').eq('id',bookId).single();
     if(error)throw error;
     const {data:chapters,error:ce}=await db.from('chapters').select('id,title,content,chapter_order').eq('book_id',bookId).order('chapter_order',{ascending:true});
     if(ce)throw ce;
@@ -73,7 +73,7 @@
       ids.push('<item id="'+id+'" href="'+fn+'" media-type="application/xhtml+xml"/>');spine.push('<itemref idref="'+id+'"/>');
     });
     const uid='urn:uuid:'+crypto.randomUUID();
-    o.file('content.opf','<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bookid">'+uid+'</dc:identifier><dc:title>'+xml(book.title)+'</dc:title><dc:creator>'+xml(author)+'</dc:creator><dc:language>en</dc:language><dc:description>'+xml(book.description||'')+'</dc:description><meta property="dcterms:modified">'+new Date().toISOString().replace(/\.\d{3}Z$/,'Z')+'</meta></metadata><manifest>'+ids.join('')+'</manifest><spine>'+spine.join('')+'</spine></package>');
+    o.file('content.opf','<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><dc:identifier id="bookid">'+uid+'</dc:identifier><dc:title>'+xml(book.title)+'</dc:title><dc:creator>'+xml(author)+'</dc:creator><dc:language>en</dc:language><dc:description>'+xml(book.description||'')+'</dc:description><meta property="dcterms:modified">'+new Date().toISOString().replace(/\.\d{3}Z$/,'Z')+'</meta></metadata><manifest>'+ids.join('')+'</manifest><spine>'+spine.join('')+'</spine></package>');
     const blob=await zip.generateAsync({type:'blob',mimeType:'application/epub+zip'});
     download(slug(book.title)+'.epub',blob);toast('EPUB export is ready.');
   }
@@ -83,10 +83,8 @@
     const openButton=$('[data-open-book]',detail);
     const title=$('.page-title',detail)?.textContent?.trim();
     if(!title)return;
-    const bookId=window.location.hash.match(/book=([^&]+)/)?.[1]||null;
-    // Existing app keeps the active book in its rendered page; retrieve its id from chapter buttons or the page state.
-    const chapterButton=$('[data-chapter]',detail);
-    const inferredId=bookId||detail.dataset.bookId||null;
+    const inferredId=detail.dataset.bookId||null;
+    if(inferredId)activeId=inferredId;
     if(!detail.querySelector('.bw-tools')){
       const tools=document.createElement('div');tools.className='bw-tools';
       tools.innerHTML='<button type="button" class="secondary" data-bw-export="txt">Export TXT</button><button type="button" class="secondary" data-bw-export="epub">Export EPUB</button><button type="button" class="ghost" data-bw-print>Print / Save PDF</button>';
@@ -137,14 +135,62 @@
   }
   function watchOpenBook(){
     const detail=$('#book-detail');if(!detail)return;
-    const orig=detail.insertAdjacentHTML;
-    // The active id is supplied from the visible page's current database book record.
-    const findId=async()=>{
-      const title=$('.page-title',detail)?.textContent?.trim();if(!title||!db)return;
-      const {data}=await db.from('books').select('id').eq('title',title).limit(1).maybeSingle();
-      if(data?.id){activeId=data.id;detail.dataset.bookId=data.id;}
+    new MutationObserver(()=>{if(detail.dataset.bookId)activeId=detail.dataset.bookId;addBookTools();installVersionHistory();}).observe(detail,{childList:true,subtree:true});
+  }
+  function installVersionHistory(){
+    const reader=$('#chapter-reader'),chapterId=reader?.dataset.chapterId;
+    if(!reader||reader.classList.contains('hidden')||!chapterId||reader.querySelector('[data-bw-history]'))return;
+    const edit=$('#edit-chapter',reader);if(!edit)return;
+    const button=document.createElement('button');button.type='button';button.className='secondary';button.dataset.bwHistory='1';button.textContent='Version history';button.style.marginLeft='8px';edit.insertAdjacentElement('afterend',button);
+    const panel=document.createElement('div');panel.className='panel';panel.hidden=true;panel.style.marginTop='14px';button.insertAdjacentElement('afterend',panel);
+    button.onclick=async()=>{
+      panel.hidden=!panel.hidden;if(panel.hidden)return;
+      panel.innerHTML='<p class="small">Loading saved versions…</p>';
+      const {data,error}=await db.from('chapter_versions').select('id,title,content,saved_at,editor_id').eq('chapter_id',chapterId).order('saved_at',{ascending:false}).limit(20);
+      if(error){panel.innerHTML='<p class="small">Version history unavailable. Run the Supabase migration and check editor permissions.</p>';return;}
+      if(!data?.length){panel.innerHTML='<p class="small">No saved versions yet. Previous text is saved whenever you edit and save this chapter.</p>';return;}
+      panel.innerHTML='<h3>Previous versions</h3>'+data.map(v=>'<div style="padding:10px 0;border-bottom:1px solid var(--line)"><strong>'+esc(v.title)+'</strong><p class="small">'+new Date(v.saved_at).toLocaleString()+' · '+(v.content||'').length+' characters</p><button type="button" class="ghost" data-bw-restore="'+esc(v.id)+'">Restore this version</button></div>').join('');
+      $('[data-bw-restore]',panel).forEach(b=>b.onclick=async()=>{
+        const version=data.find(v=>String(v.id)===b.dataset.bwRestore);if(!version||!confirm('Restore this saved version? The current chapter will first be saved as another version.'))return;
+        const {data:current,error:readErr}=await db.from('chapters').select('id,title,content').eq('id',chapterId).single();
+        if(readErr){toast('Could not load the current chapter: '+readErr.message,true);return;}
+        const {data:userData}=await db.auth.getUser(),uid=userData.user?.id;
+        if(uid){const snap=await db.from('chapter_versions').insert({chapter_id:chapterId,editor_id:uid,title:current.title,content:current.content||''});if(snap.error){toast('Could not preserve the current version: '+snap.error.message,true);return;}}
+        const {error:updateErr}=await db.from('chapters').update({title:version.title,content:version.content,updated_at:new Date().toISOString()}).eq('id',chapterId);
+        if(updateErr){toast('Restore failed: '+updateErr.message,true);return;}
+        toast('Chapter version restored.');location.reload();
+      });
     };
-    new MutationObserver(()=>{findId().catch(()=>{});addBookTools();}).observe(detail,{childList:true,subtree:true});
+  }
+  function installVersionSnapshots(){
+    document.addEventListener('submit',async e=>{
+      const form=e.target;
+      if(!(form instanceof HTMLFormElement)||form.id!=='modal-form'||!form.elements.chapter_id?.value||form.dataset.bwVersionPass)return;
+      e.preventDefault();e.stopImmediatePropagation();
+      const chapterId=form.elements.chapter_id.value;
+      try{
+        const {data:userData}=await db.auth.getUser(),uid=userData.user?.id;
+        if(uid){
+          const {data:old,error:readErr}=await db.from('chapters').select('title,content').eq('id',chapterId).single();
+          if(!readErr&&old){const {error}=await db.from('chapter_versions').insert({chapter_id:chapterId,editor_id:uid,title:old.title,content:old.content||''});if(error)toast('Chapter will save, but version history failed: '+error.message,true);}
+        }
+      }catch(err){console.warn('Could not save chapter version',err);}
+      form.dataset.bwVersionPass='1';form.requestSubmit(form.querySelector('button[type="submit"]'));
+    },true);
+  }
+  function installDraftRecovery(){
+    const form=$('#modal-form'),textarea=form?.querySelector('textarea[name="content"]');
+    if(!form||!textarea||textarea.dataset.bwDraftReady)return;
+    const id=form.elements.chapter_id?.value;
+    if(!id)return;
+    textarea.dataset.bwDraftReady='1';
+    const key='bw-draft:'+id,stored=localStorage.getItem(key);
+    if(stored!==null&&stored!==textarea.value){
+      const restore=document.createElement('button');restore.type='button';restore.className='secondary';restore.textContent='Restore unsaved local draft';
+      restore.onclick=()=>{textarea.value=stored;textarea.dispatchEvent(new Event('input',{bubbles:true}));restore.remove();toast('Local draft restored.');};
+      textarea.insertAdjacentElement('beforebegin',restore);
+    }
+    textarea.addEventListener('input',()=>{try{localStorage.setItem(key,textarea.value)}catch{}});
   }
   function enhanceCards(){
     $$('.book').forEach(card=>{
@@ -153,10 +199,10 @@
     });
   }
   function start(){
-    installTheme();installBookObserver();watchOpenBook();
+    installTheme();installBookObserver();watchOpenBook();installVersionSnapshots();
     new MutationObserver(enhanceCards).observe(document.body,{childList:true,subtree:true});
     document.addEventListener('input',e=>{if(e.target.matches('#modal-form textarea[name="content"]'))addBookTools();});
-    setInterval(()=>{installTheme();addBookTools();},1200);
+    setInterval(()=>{installTheme();addBookTools();installDraftRecovery();installVersionHistory();},1200);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
