@@ -5,11 +5,11 @@ BookWriters is a static writing and collaboration website built with HTML, CSS, 
 ## Features
 
 - Account sign-up/sign-in, writer profiles, public book discovery, and a personal library.
-- Books, chapters, collaborator invitations by username, and project chat.
+- Books, chapters, collaborator invitations by username, owner-managed collaborator removal, and project chat.
 - Light/dark theme toggle.
 - Chapter word and character counts, fullscreen editing, and Ctrl/Cmd+S save shortcut.
 - Local browser draft recovery for an edited chapter.
-- TXT and EPUB export, plus browser print / Save as PDF.
+- TXT and EPUB export, plus whole-book print / Save as PDF with chapter page breaks.
 - Book likes, bookmarks, writer follows, writer search, and optional cover images.
 - Chapter version snapshots and a version-history restore panel.
 
