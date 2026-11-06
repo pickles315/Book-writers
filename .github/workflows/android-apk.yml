@@ -5,6 +5,11 @@ on:
     branches: [android-app-webview, main]
     paths:
       - "android/**"
+      - "index.html"
+      - "library.js"
+      - "book-details.js"
+      - "supabase/functions/library-api/**"
+      - "supabase/migrations/**"
       - ".github/workflows/android-apk.yml"
   pull_request:
     branches: [main]
