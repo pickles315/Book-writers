@@ -1,5 +1,6 @@
 package com.bookwriters.app
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -12,33 +13,13 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.FrameLayout
-import android.widget.ProgressBar
 import android.widget.LinearLayout
-import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.ProgressBar
 
-class MainActivity : ComponentActivity() {
+class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
-
-    private val filePicker = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val callback = filePathCallback
-        filePathCallback = null
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data
-            val uris = data?.clipData?.let { clip ->
-                Array(clip.itemCount) { index -> clip.getItemAt(index).uri }
-            } ?: data?.data?.let { arrayOf(it) }
-            callback?.onReceiveValue(uris)
-        } else {
-            callback?.onReceiveValue(null)
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,8 +66,7 @@ class MainActivity : ComponentActivity() {
             ): Boolean {
                 val uri = request.url
                 val host = uri.host.orEmpty()
-                val isBookWriters = host == "pickles315.github.io"
-                if (isBookWriters && uri.scheme == "https") return false
+                if (host == "pickles315.github.io" && uri.scheme == "https") return false
 
                 if (uri.scheme == "https" || uri.scheme == "http") {
                     startActivity(Intent(Intent.ACTION_VIEW, uri))
@@ -121,7 +101,10 @@ class MainActivity : ComponentActivity() {
                     ))
                     putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
                 }
-                filePicker.launch(Intent.createChooser(chooserIntent, "Choose a book, audiobook, or cover"))
+                startActivityForResult(
+                    Intent.createChooser(chooserIntent, "Choose a book, audiobook, or cover"),
+                    FILE_CHOOSER_REQUEST
+                )
                 return true
             }
         }
@@ -131,12 +114,23 @@ class MainActivity : ComponentActivity() {
         } else {
             webView.restoreState(savedInstanceState)
         }
+    }
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (webView.canGoBack()) webView.goBack() else finish()
-            }
-        })
+    @Deprecated("Deprecated by Android; retained for WebView file chooser compatibility.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != FILE_CHOOSER_REQUEST) return
+
+        val callback = filePathCallback
+        filePathCallback = null
+        if (resultCode == RESULT_OK) {
+            val uris = data?.clipData?.let { clip ->
+                Array(clip.itemCount) { index -> clip.getItemAt(index).uri }
+            } ?: data?.data?.let { arrayOf(it) }
+            callback?.onReceiveValue(uris)
+        } else {
+            callback?.onReceiveValue(null)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -144,10 +138,18 @@ class MainActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     override fun onDestroy() {
         filePathCallback?.onReceiveValue(null)
         filePathCallback = null
-        webView.destroy()
+        if (::webView.isInitialized) webView.destroy()
         super.onDestroy()
     }
 
@@ -155,7 +157,8 @@ class MainActivity : ComponentActivity() {
         (value * resources.displayMetrics.density).toInt()
 
     companion object {
-        // The app loads the same live site; accounts and library data stay on the shared backend.
+        private const val FILE_CHOOSER_REQUEST = 1001
+        // Loads the same live site; library data stays on the shared backend.
         private const val SITE_URL = "https://pickles315.github.io/Book-writers/"
     }
 }
