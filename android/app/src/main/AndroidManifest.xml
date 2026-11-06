@@ -4,6 +4,7 @@
     <application
         android:allowBackup="false"
         android:label="BookWriters"
+        android:icon="@drawable/ic_bookwriters"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
