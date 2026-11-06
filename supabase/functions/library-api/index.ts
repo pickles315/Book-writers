@@ -246,7 +246,7 @@ Deno.serve(async (req: Request) => {
       if (!["Juvenile", "Adult", "All Ages"].includes(age)) return fail("Choose an age classification.");
       const row = {
         id: body.item_id, title: String(body.title || "").trim(),
-        author: String(body.author || "").trim(), narrator: String(body.narrator || "").trim() || null,
+        author: String(body.author || "").trim() || "Unknown author", narrator: String(body.narrator || "").trim() || null,
         media_type: mediaType, age_classification: age,
         total_copies: Math.max(1, Math.floor(Number(body.total_copies) || 1)),
         file_path: body.file_path, cover_path: body.cover_path, created_by: card.id,
