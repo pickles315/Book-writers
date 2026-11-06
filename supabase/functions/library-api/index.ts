@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
     if (action === "discover") {
       await expireLoans();
       const [{ data: items, error }, { data: active, error: loanError }] = await Promise.all([
-        db.from("library_items").select("id,title,author,narrator,media_type,age_classification,total_copies,cover_path,created_at").order("created_at", { ascending: false }),
+        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at").order("created_at", { ascending: false }),
         db.from("library_loans").select("item_id").is("returned_at", null).gt("due_at", new Date().toISOString()),
       ]);
       if (error || loanError) throw error || loanError;
@@ -166,6 +166,18 @@ Deno.serve(async (req: Request) => {
       })));
       return json({ items: result });
     }
+
+    if (action === "item-detail") {
+      const itemId = String(body.item_id || "");
+      const [{ data: item, error }, { count, error: countError }] = await Promise.all([
+        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at").eq("id", itemId).maybeSingle(),
+        db.from("library_loans").select("id", { count: "exact", head: true }).eq("item_id", itemId).is("returned_at", null).gt("due_at", new Date().toISOString()),
+      ]);
+      if (error || countError) throw error || countError;
+      if (!item) return fail("Book not found.", 404);
+      return json({ item: { ...item, available_copies: Math.max(0, item.total_copies - (count || 0)), cover_url: await signedCover(item.cover_path) } });
+    }
+
     if (action === "loans") {
       await expireLoans();
       const { data: loans, error } = await db.from("library_loans")
@@ -176,7 +188,7 @@ Deno.serve(async (req: Request) => {
       const ids = (loans || []).map((x) => x.item_id);
       const loanIds = (loans || []).map((x) => x.id);
       const [{ data: items }, { data: progress }] = await Promise.all([
-        ids.length ? db.from("library_items").select("id,title,author,narrator,media_type,age_classification,cover_path,file_path").in("id", ids) : Promise.resolve({ data: [] }),
+        ids.length ? db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,file_path").in("id", ids) : Promise.resolve({ data: [] }),
         loanIds.length ? db.from("library_progress").select("loan_id,current_page,total_pages,audio_position_seconds,reading_location").in("loan_id", loanIds) : Promise.resolve({ data: [] }),
       ]);
       const itemMap = new Map((items || []).map((x) => [x.id, x]));
@@ -254,13 +266,70 @@ Deno.serve(async (req: Request) => {
         id: body.item_id, title: String(body.title || "").trim(),
         author: String(body.author || "").trim() || "Unknown author", narrator: String(body.narrator || "").trim() || null,
         media_type: mediaType, age_classification: age,
-        total_copies: Math.max(1, Math.floor(Number(body.total_copies) || 1)),
+        description: String(body.description || "").trim().slice(0, 4000),
+        page_count: mediaType === "audiobook" ? null : (Number.isInteger(Number(body.page_count)) && Number(body.page_count) > 0 ? Number(body.page_count) : null),
+        audio_duration_seconds: mediaType === "audiobook" ? (Number.isInteger(Number(body.audio_duration_seconds)) && Number(body.audio_duration_seconds) > 0 ? Number(body.audio_duration_seconds) : null) : null,
+        total_copies: Math.max(1, Math.min(10000, Math.floor(Number(body.total_copies) || 1))),
         file_path: body.file_path, cover_path: body.cover_path, created_by: card.id,
       };
       const { data, error } = await db.from("library_items").insert(row).select("id").single();
       if (error) throw error;
       return json({ id: data.id }, 201);
     }
+
+    if (action === "admin-cover-start") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || "");
+      const { data: item, error: itemError } = await db.from("library_items").select("id").eq("id", itemId).maybeSingle();
+      if (itemError) throw itemError;
+      if (!item) return fail("Book not found.", 404);
+      const ext = String(body.cover_ext || "jpg").toLowerCase();
+      if (!["jpg", "jpeg", "png", "webp"].includes(ext)) return fail("Unsupported cover image.");
+      const coverPath = itemId + "/cover-" + crypto.randomUUID() + "." + ext;
+      const { data, error } = await db.storage.from("library-media").createSignedUploadUrl(coverPath);
+      if (error) throw error;
+      return json({ cover_path: coverPath, cover_upload: data });
+    }
+    if (action === "admin-update-item") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || "");
+      const title = String(body.title || "").trim();
+      const author = String(body.author || "").trim();
+      const mediaType = String(body.media_type || "");
+      const age = String(body.age_classification || "");
+      const copies = Number(body.total_copies);
+      const pageCount = body.page_count === "" || body.page_count == null ? null : Number(body.page_count);
+      const duration = body.audio_duration_seconds === "" || body.audio_duration_seconds == null ? null : Number(body.audio_duration_seconds);
+      const description = String(body.description || "").trim();
+      if (!title || title.length > 180) return fail("Enter a title up to 180 characters.");
+      if (!author || author.length > 120) return fail("Enter an author up to 120 characters.");
+      if (String(body.narrator || "").length > 120) return fail("Narrator must be 120 characters or fewer.");
+      if (description.length > 4000) return fail("Description must be 4,000 characters or fewer.");
+      if (!["book", "graphic_novel", "audiobook"].includes(mediaType)) return fail("Choose a valid format.");
+      if (!["Juvenile", "Adult", "All Ages"].includes(age)) return fail("Choose a valid age classification.");
+      if (!Number.isInteger(copies) || copies < 1 || copies > 10000) return fail("Copies must be between 1 and 10,000.");
+      if (mediaType !== "audiobook" && pageCount !== null && (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > 100000)) return fail("Enter a valid page count.");
+      if (mediaType === "audiobook" && duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 864000)) return fail("Enter a valid audio length in seconds.");
+      const { data: oldItem, error: readError } = await db.from("library_items").select("cover_path").eq("id", itemId).maybeSingle();
+      if (readError) throw readError;
+      if (!oldItem) return fail("Book not found.", 404);
+      const update = {
+        title, author, narrator: String(body.narrator || "").trim() || null, description,
+        media_type: mediaType, age_classification: age, total_copies: copies,
+        page_count: mediaType === "audiobook" ? null : pageCount,
+        audio_duration_seconds: mediaType === "audiobook" ? duration : null,
+        ...(body.cover_path ? { cover_path: String(body.cover_path) } : {}),
+      };
+      if (body.cover_path && !String(body.cover_path).startsWith(itemId + "/cover-")) return fail("Invalid cover upload path.");
+      const { error } = await db.from("library_items").update(update).eq("id", itemId);
+      if (error) throw error;
+      if (body.cover_path && oldItem.cover_path !== body.cover_path) {
+        const { error: removeError } = await db.storage.from("library-media").remove([oldItem.cover_path]);
+        if (removeError) console.warn("Old cover cleanup failed", removeError);
+      }
+      return json({ ok: true });
+    }
+
     if (action === "delete-card") {
       if (card.role === "admin") return fail("The administrator card cannot be deleted here.", 403);
       await db.from("library_cards").update({ disabled_at: new Date().toISOString() }).eq("id", card.id);
