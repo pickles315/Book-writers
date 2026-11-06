@@ -1,0 +1,55 @@
+name: Library frontend checks
+
+on:
+  push:
+    branches: [libby-library-redesign]
+  pull_request:
+    branches: [main]
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: node --check library.js
+      - name: Check HTML structure and required app views
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          class CheckHTML(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.stack = []
+                  self.errors = []
+              def handle_starttag(self, tag, attrs):
+                  if tag not in {"area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"}:
+                      self.stack.append(tag)
+              def handle_endtag(self, tag):
+                  if tag in self.stack:
+                      while self.stack:
+                          current = self.stack.pop()
+                          if current == tag:
+                              break
+              def close(self):
+                  super().close()
+                  if self.stack:
+                      self.errors.append("Unclosed tags: " + ", ".join(self.stack[-10:]))
+
+          html = Path("index.html").read_text(encoding="utf-8")
+          parser = CheckHTML()
+          parser.feed(html)
+          parser.close()
+          assert not parser.errors, parser.errors
+          for required in ('id="page-discover"', 'id="page-loans"', 'id="page-settings"', 'id="admin-add"', 'library.js'):
+              assert required in html, f"Missing required element: {required}"
+          print("HTML checks passed")
+          PY
+      - name: Check browser code contains no server secret keys
+        run: |
+          ! grep -E 'service_role|SUPABASE_SECRET_KEYS|SUPABASE_SERVICE_ROLE_KEY' library.js index.html
