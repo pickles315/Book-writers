@@ -310,9 +310,10 @@ Deno.serve(async (req: Request) => {
       if (!Number.isInteger(copies) || copies < 1 || copies > 10000) return fail("Copies must be between 1 and 10,000.");
       if (mediaType !== "audiobook" && pageCount !== null && (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > 100000)) return fail("Enter a valid page count.");
       if (mediaType === "audiobook" && duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 864000)) return fail("Enter a valid audio length in seconds.");
-      const { data: oldItem, error: readError } = await db.from("library_items").select("cover_path").eq("id", itemId).maybeSingle();
+      const { data: oldItem, error: readError } = await db.from("library_items").select("cover_path,media_type").eq("id", itemId).maybeSingle();
       if (readError) throw readError;
       if (!oldItem) return fail("Book not found.", 404);
+      if (mediaType !== oldItem.media_type) return fail("The format cannot be changed without replacing the uploaded book file.");
       const update = {
         title, author, narrator: String(body.narrator || "").trim() || null, description,
         media_type: mediaType, age_classification: age, total_copies: copies,
