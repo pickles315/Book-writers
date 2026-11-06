@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
-import bcrypt from "npm:bcryptjs@2.4.3";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +9,31 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const fail = (message: string, status = 400) => json({ error: message }, status);
 const encoder = new TextEncoder();
+
+async function derivePin(pin: string, salt: Uint8Array, iterations = 310000) {
+  const key = await crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256
+  ));
+}
+function fromHex(value: string) {
+  return new Uint8Array(value.match(/.{2}/g)?.map((x) => parseInt(x, 16)) || []);
+}
+async function hashPin(pin: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const digest = await derivePin(pin, salt);
+  return "pbkdf2$310000$" + hex(salt) + "$" + hex(digest);
+}
+async function verifyPin(pin: string, encoded: string) {
+  const parts = encoded.split("$");
+  if (parts.length !== 4 || parts[0] !== "pbkdf2" || Number(parts[1]) !== 310000) return false;
+  const expected = fromHex(parts[3]);
+  const actual = await derivePin(pin, fromHex(parts[2]));
+  if (actual.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
+  return diff === 0;
+}
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function sha(value: string) {
   return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
@@ -83,7 +107,7 @@ Deno.serve(async (req: Request) => {
       }
       if (!cardNumber) return fail("Could not create a card right now. Try again.", 503);
       const pin = randomDigits(4);
-      const pinHash = await bcrypt.hash(pin, 12);
+      const pinHash = await hashPin(pin);
       const { data: card, error } = await db.from("library_cards")
         .insert({ card_number: cardNumber, pin_hash: pinHash, role: "reader", display_name: displayName })
         .select("id").single();
@@ -102,7 +126,7 @@ Deno.serve(async (req: Request) => {
       const { data: card } = await db.from("library_cards")
         .select("id,pin_hash,role,display_name,disabled_at")
         .eq("card_number", cardNumber).maybeSingle();
-      if (!card || card.disabled_at || !(await bcrypt.compare(pin, card.pin_hash))) {
+      if (!card || card.disabled_at || !(await verifyPin(pin, card.pin_hash))) {
         await db.rpc("library_record_failed_login", { p_attempt_key: attemptKey });
         return fail("Card number or PIN is incorrect.", 401);
       }
