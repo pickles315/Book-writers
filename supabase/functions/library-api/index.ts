@@ -135,6 +135,12 @@ Deno.serve(async (req: Request) => {
       return json({ token, role: card.role, display_name: card.display_name, card_number: cardNumber });
     }
 
+    if (action === "public-stats") {
+      const { count, error } = await db.from("library_loans").select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return json({ books_borrowed: count || 0 });
+    }
+
     const card = await getCard(req);
     if (!card) return fail("Your session expired. Please sign in again.", 401);
 
