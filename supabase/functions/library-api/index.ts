@@ -160,24 +160,30 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "discover") {
       await expireLoans();
-      const [{ data: items, error }, { data: active, error: loanError }] = await Promise.all([
-        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at").order("created_at", { ascending: false }),
+      const [{ data: items, error }, { data: active, error: loanError }, { data: allLoans, error: allLoanError }, { data: reviews, error: reviewError }] = await Promise.all([
+        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at,genre,series_name,series_number").order("created_at", { ascending: false }),
         db.from("library_loans").select("item_id").is("returned_at", null).gt("due_at", new Date().toISOString()),
+        db.from("library_loans").select("item_id"),
+        db.from("library_reviews").select("item_id,rating"),
       ]);
-      if (error || loanError) throw error || loanError;
-      const counts = new Map<string, number>();
+      if (error || loanError || allLoanError || reviewError) throw error || loanError || allLoanError || reviewError;
+      const counts = new Map<string, number>(), popularity = new Map<string, number>(), ratingTotals = new Map<string, {sum:number,count:number}>();
       for (const loan of active || []) counts.set(loan.item_id, (counts.get(loan.item_id) || 0) + 1);
-      const result = await Promise.all((items || []).map(async (item) => ({
-        ...item, available_copies: Math.max(0, item.total_copies - (counts.get(item.id) || 0)),
-        cover_url: await signedCover(item.cover_path),
-      })));
+      for (const loan of allLoans || []) popularity.set(loan.item_id, (popularity.get(loan.item_id) || 0) + 1);
+      for (const review of reviews || []) { const v=ratingTotals.get(review.item_id)||{sum:0,count:0};v.sum+=review.rating;v.count++;ratingTotals.set(review.item_id,v); }
+      const result = await Promise.all((items || []).map(async (item) => {
+        const rating=ratingTotals.get(item.id)||{sum:0,count:0};
+        return { ...item, available_copies: Math.max(0, item.total_copies - (counts.get(item.id) || 0)),
+          borrow_count: popularity.get(item.id)||0, average_rating: rating.count?rating.sum/rating.count:null, review_count:rating.count,
+          cover_url: await signedCover(item.cover_path) };
+      }));
       return json({ items: result });
     }
 
     if (action === "item-detail") {
       const itemId = String(body.item_id || "");
       const [{ data: item, error }, { count, error: countError }] = await Promise.all([
-        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at").eq("id", itemId).maybeSingle(),
+        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at,genre,series_name,series_number").eq("id", itemId).maybeSingle(),
         db.from("library_loans").select("id", { count: "exact", head: true }).eq("item_id", itemId).is("returned_at", null).gt("due_at", new Date().toISOString()),
       ]);
       if (error || countError) throw error || countError;
@@ -220,8 +226,12 @@ Deno.serve(async (req: Request) => {
       if (!data) return fail("That loan could not be returned.", 404);
       const { data: returnedLoan } = await db.from("library_loans").select("item_id").eq("id", String(body.loan_id || "")).maybeSingle();
       if (returnedLoan?.item_id) {
-        const { data: nextUp } = await db.from("library_waitlist").select("id").eq("item_id", returnedLoan.item_id).eq("status", "waiting").order("created_at").limit(1).maybeSingle();
-        if (nextUp) await db.from("library_waitlist").update({ status: "ready", updated_at: new Date().toISOString() }).eq("id", nextUp.id);
+        const { data: nextUp } = await db.from("library_waitlist").select("id,card_id").eq("item_id", returnedLoan.item_id).eq("status", "waiting").order("created_at").limit(1).maybeSingle();
+        if (nextUp) {
+          await db.from("library_waitlist").update({ status: "ready", updated_at: new Date().toISOString() }).eq("id", nextUp.id);
+          const { data: item } = await db.from("library_items").select("title").eq("id", returnedLoan.item_id).maybeSingle();
+          await db.from("library_notifications").upsert({ card_id: nextUp.card_id, kind: "waitlist", title: "A book is ready", message: (item?.title || "A book") + " is ready for you to borrow.", source_key: "waitlist:" + nextUp.id }, { onConflict: "card_id,source_key", ignoreDuplicates: true });
+        }
       }
       return json({ ok: true });
     }
@@ -283,11 +293,16 @@ Deno.serve(async (req: Request) => {
         author: String(body.author || "").trim() || "Unknown author", narrator: String(body.narrator || "").trim() || null,
         media_type: mediaType, age_classification: age,
         description: String(body.description || "").trim().slice(0, 4000),
+        genre: String(body.genre || "Uncategorized").trim().slice(0, 60) || "Uncategorized",
+        series_name: String(body.series_name || "").trim().slice(0, 120) || null,
+        series_number: body.series_number == null || body.series_number === "" ? null : Number(body.series_number),
         page_count: mediaType === "audiobook" ? null : (Number.isInteger(Number(body.page_count)) && Number(body.page_count) > 0 ? Number(body.page_count) : null),
         audio_duration_seconds: mediaType === "audiobook" ? (Number.isInteger(Number(body.audio_duration_seconds)) && Number(body.audio_duration_seconds) > 0 ? Number(body.audio_duration_seconds) : null) : null,
         total_copies: Math.max(1, Math.min(10000, Math.floor(Number(body.total_copies) || 1))),
         file_path: body.file_path, cover_path: body.cover_path, created_by: card.id,
       };
+      if (row.series_number !== null && (!Number.isInteger(row.series_number) || row.series_number < 1 || row.series_number > 999)) return fail("Series book number must be between 1 and 999.");
+      if (row.series_number !== null && !row.series_name) return fail("Enter the series name or choose Standalone.");
       const { data, error } = await db.from("library_items").insert(row).select("id").single();
       if (error) throw error;
       return json({ id: data.id }, 201);
@@ -332,12 +347,17 @@ Deno.serve(async (req: Request) => {
       if (mediaType !== oldItem.media_type) return fail("The format cannot be changed without replacing the uploaded book file.");
       const update = {
         title, author, narrator: String(body.narrator || "").trim() || null, description,
+        genre: String(body.genre || "Uncategorized").trim().slice(0, 60) || "Uncategorized",
+        series_name: String(body.series_name || "").trim().slice(0, 120) || null,
+        series_number: body.series_number === "" || body.series_number == null ? null : Number(body.series_number),
         media_type: mediaType, age_classification: age, total_copies: copies,
         page_count: mediaType === "audiobook" ? null : pageCount,
         audio_duration_seconds: mediaType === "audiobook" ? duration : null,
         ...(body.cover_path ? { cover_path: String(body.cover_path) } : {}),
       };
       if (body.cover_path && !String(body.cover_path).startsWith(itemId + "/cover-")) return fail("Invalid cover upload path.");
+      if (update.series_number !== null && (!Number.isInteger(update.series_number) || update.series_number < 1 || update.series_number > 999)) return fail("Series book number must be between 1 and 999.");
+      if (update.series_number !== null && !update.series_name) return fail("Enter the series name or choose Standalone.");
       const { error } = await db.from("library_items").update(update).eq("id", itemId);
       if (error) throw error;
       if (body.cover_path && oldItem.cover_path !== body.cover_path) {
@@ -494,6 +514,120 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       return json({ items: await Promise.all((data || []).map(async (x: any) => ({ ...x, cover_url: await signedCover(x.cover_path) }))) });
     }
+    if (action === "reading-goal") {
+      const year = Number(body.year) || new Date().getFullYear();
+      if (!Number.isInteger(year) || year < 2020 || year > 2100) return fail("Choose a valid goal year.");
+      if (body.target_books !== undefined) {
+        const target = Number(body.target_books);
+        if (!Number.isInteger(target) || target < 1 || target > 500) return fail("Set a goal between 1 and 500 books.");
+        const { error } = await db.from("library_reading_goals").upsert({ card_id: card.id, goal_year: year, target_books: target, updated_at: new Date().toISOString() }, { onConflict: "card_id,goal_year" });
+        if (error) throw error;
+      }
+      const start = new Date(Date.UTC(year,0,1)).toISOString(), end = new Date(Date.UTC(year+1,0,1)).toISOString();
+      const [{ data: goal }, { count, error: countError }] = await Promise.all([
+        db.from("library_reading_goals").select("target_books").eq("card_id", card.id).eq("goal_year", year).maybeSingle(),
+        db.from("library_loans").select("id", { count: "exact", head: true }).eq("card_id", card.id).not("returned_at", "is", null).gte("borrowed_at", start).lt("borrowed_at", end)
+      ]);
+      if (countError) throw countError;
+      return json({ year, target_books: goal?.target_books || 12, finished_books: count || 0 });
+    }
+    if (action === "collections") {
+      const { data, error } = await db.from("library_collections").select("id,name,created_at").eq("card_id", card.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      const ids = (data || []).map((x: any) => x.id);
+      const { data: links, error: linkError } = ids.length ? await db.from("library_collection_items").select("collection_id,item_id,added_at").in("collection_id", ids) : { data: [], error: null };
+      if (linkError) throw linkError;
+      const itemIds = [...new Set((links || []).map((x: any) => x.item_id))];
+      const { data: items, error: itemError } = itemIds.length ? await db.from("library_items").select("id,title,author,media_type,genre,series_name,series_number,cover_path").in("id", itemIds) : { data: [], error: null };
+      if (itemError) throw itemError;
+      const itemMap = new Map((items || []).map((x: any) => [x.id,x]));
+      const linksByCollection = new Map<string, any[]>();
+      for (const link of links || []) linksByCollection.set(link.collection_id, [...(linksByCollection.get(link.collection_id)||[]), { ...link, item: itemMap.get(link.item_id) }]);
+      return json({ collections: await Promise.all((data || []).map(async (x: any) => ({ ...x, items: await Promise.all((linksByCollection.get(x.id)||[]).filter((v:any)=>v.item).map(async (v:any)=>({ ...v, item: { ...v.item, cover_url: await signedCover(v.item.cover_path) } }))) }))) });
+    }
+    if (action === "collection-create") {
+      const name = String(body.name || "").trim();
+      if (!name || name.length > 60) return fail("Collection names must be 1 to 60 characters.");
+      const { data, error } = await db.from("library_collections").insert({ card_id: card.id, name }).select("id,name,created_at").single();
+      if (error?.code === "23505") return fail("You already have a collection with that name.");
+      if (error) throw error;
+      return json({ collection: data }, 201);
+    }
+    if (action === "collection-delete") {
+      const { error } = await db.from("library_collections").delete().eq("id", String(body.collection_id || "")).eq("card_id", card.id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "collection-add") {
+      const collectionId = String(body.collection_id || ""), itemId = String(body.item_id || "");
+      const { data: owned, error: ownedError } = await db.from("library_collections").select("id").eq("id", collectionId).eq("card_id", card.id).maybeSingle();
+      if (ownedError) throw ownedError;
+      if (!owned) return fail("Collection not found.", 404);
+      const { error } = await db.from("library_collection_items").upsert({ collection_id: collectionId, item_id: itemId }, { onConflict: "collection_id,item_id", ignoreDuplicates: true });
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "collection-remove") {
+      const collectionId = String(body.collection_id || ""), itemId = String(body.item_id || "");
+      const { data: owned, error: ownedError } = await db.from("library_collections").select("id").eq("id", collectionId).eq("card_id", card.id).maybeSingle();
+      if (ownedError) throw ownedError;
+      if (!owned) return fail("Collection not found.", 404);
+      const { error } = await db.from("library_collection_items").delete().eq("collection_id", collectionId).eq("item_id", itemId);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "reader-profile") {
+      if (body.display_name !== undefined) {
+        const displayName = String(body.display_name || "").trim();
+        if (!displayName || displayName.length > 60) return fail("Display name must be 1 to 60 characters.");
+        const { error } = await db.from("library_cards").update({ display_name: displayName }).eq("id", card.id);
+        if (error) throw error;
+      }
+      if (body.bio !== undefined || body.favorite_genre !== undefined) {
+        const bio = String(body.bio || "").trim(), favoriteGenre = String(body.favorite_genre || "").trim();
+        if (bio.length > 240 || favoriteGenre.length > 60) return fail("Profile text is too long.");
+        const { error } = await db.from("library_reader_profiles").upsert({ card_id: card.id, bio, favorite_genre: favoriteGenre, updated_at: new Date().toISOString() }, { onConflict: "card_id" });
+        if (error) throw error;
+      }
+      const [{ data: profile }, { data: cardData }] = await Promise.all([
+        db.from("library_reader_profiles").select("bio,favorite_genre").eq("card_id", card.id).maybeSingle(),
+        db.from("library_cards").select("display_name,card_number,created_at").eq("id", card.id).single()
+      ]);
+      return json({ profile: { display_name: cardData.display_name, card_suffix: String(cardData.card_number).slice(-4), member_since: cardData.created_at, bio: profile?.bio || "", favorite_genre: profile?.favorite_genre || "" } });
+    }
+    if (action === "announcements") {
+      const { data, error } = await db.from("library_announcements").select("id,title,message,created_at").eq("is_published", true).order("created_at", { ascending: false }).limit(12);
+      if (error) throw error;
+      return json({ announcements: data || [] });
+    }
+    if (action === "admin-announcement-create") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const title = String(body.title || "").trim(), message = String(body.message || "").trim();
+      if (!title || title.length > 120 || !message || message.length > 1500) return fail("Enter a title and a message (up to 1,500 characters).");
+      const { data, error } = await db.from("library_announcements").insert({ title, message, created_by: card.id }).select("id,title,message,created_at").single();
+      if (error) throw error;
+      const { data: readers, error: readersError } = await db.from("library_cards").select("id").is("disabled_at", null);
+      if (readersError) throw readersError;
+      const rows = (readers || []).filter((x:any)=>x.id!==card.id).map((x:any)=>({ card_id:x.id, kind:"announcement", title, message, source_key:"announcement:"+data.id }));
+      if (rows.length) { const { error: notifyError } = await db.from("library_notifications").upsert(rows, { onConflict:"card_id,source_key", ignoreDuplicates:true }); if (notifyError) throw notifyError; }
+      return json({ announcement: data }, 201);
+    }
+    if (action === "admin-announcement-delete") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const { error } = await db.from("library_announcements").delete().eq("id", String(body.announcement_id || ""));
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "notifications") {
+      const { data, error } = await db.from("library_notifications").select("id,kind,title,message,created_at,read_at").eq("card_id", card.id).order("created_at", { ascending: false }).limit(30);
+      if (error) throw error;
+      return json({ notifications: data || [], unread: (data || []).filter((x:any)=>!x.read_at).length });
+    }
+    if (action === "notification-read") {
+      const { error } = await db.from("library_notifications").update({ read_at: new Date().toISOString() }).eq("id", String(body.notification_id || "")).eq("card_id", card.id).is("read_at", null);
+      if (error) throw error;
+      return json({ ok: true });
+    }
     if (action === "admin-analytics") {
       if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
       const [cards, items, loans, overdue, requests, waiting] = await Promise.all([
@@ -593,11 +727,15 @@ Deno.serve(async (req: Request) => {
       if (!requestId) return fail("Request ID is missing.");
       if (!["pending", "approved", "declined"].includes(status)) return fail("Choose a valid request status.");
       if (adminNote.length > 1000) return fail("Admin note must be 1,000 characters or fewer.");
+      const { data: existingRequest, error: requestReadError } = await db.from("library_book_requests").select("id,card_id,title").eq("id", requestId).maybeSingle();
+      if (requestReadError) throw requestReadError;
+      if (!existingRequest) return fail("Request not found.", 404);
       const { data, error } = await db.from("library_book_requests")
         .update({ status, admin_note: adminNote, updated_at: new Date().toISOString() })
         .eq("id", requestId).select("id,status,admin_note").maybeSingle();
       if (error) throw error;
       if (!data) return fail("Request not found.", 404);
+      await db.from("library_notifications").insert({ card_id: existingRequest.card_id, kind: "request", title: "Your book request was updated", message: existingRequest.title + " is now " + status + (adminNote ? ". " + adminNote : "."), source_key: "request:" + requestId + ":" + new Date().toISOString() });
       return json({ request: data });
     }
     if (action === "delete-card") {
