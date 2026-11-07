@@ -72,19 +72,19 @@ function seekAudio(seconds){if(audio&&Number.isFinite(audio.duration))audio.curr
 function updateAudioUI(){
  if(!audio)return;
  const playing=!audio.paused&&!audio.ended;
- const current=formatAudioTime(audio.currentTime),duration=formatAudioTime(audio.duration);
+ const current=formatAudioTime(audio.currentTime),duration=formatAudioTime(audio.duration);const percent=Number.isFinite(audio.duration)&&audio.duration>0?Math.round(audio.currentTime/audio.duration*100):0;const remaining=Number.isFinite(audio.duration)? "-"+formatAudioTime(Math.max(0,audio.duration-audio.currentTime)):"--:--";
  const mini=$("#audio-mini-player");
  if(mini){mini.classList.toggle("visible",playing);$("#mini-play").textContent=playing?"Ⅱ":"▶";$("#mini-play").setAttribute("aria-label",playing?"Pause":"Play");$("#mini-time").textContent=current+" / "+duration}
  const play=$("#audio-play");if(play){play.textContent=playing?"Ⅱ":"▶";play.setAttribute("aria-label",playing?"Pause":"Play")}
- const now=$("#audio-current"),total=$("#audio-duration"),range=$("#audio-range");
- if(now)now.textContent=current;if(total)total.textContent=duration;
- if(range&&audio.duration)range.value=String(audio.currentTime/audio.duration*1000);
+ const now=$("#audio-current"),total=$("#audio-duration"),range=$("#audio-range"),pct=$("#audio-percent"),left=$("#audio-remaining");
+ if(now)now.textContent=current;if(total)total.textContent=duration;if(pct)pct.textContent=percent+"%";if(left)left.textContent=remaining;
+ if(range&&audio.duration){range.value=String(audio.currentTime/audio.duration*1000);range.style.setProperty("--played",percent+"%");}
 }
 async function saveAudioProgress(){if(!audio||!currentAudioLoanId)return;try{await api("progress",{loan_id:currentAudioLoanId,audio_position_seconds:audio.currentTime})}catch(e){console.warn(e)}}
 function renderAudioView(loan){
  const host=$("#reader-content");if(!host)return;
  host.classList.add("audio-stage");host.style.display="grid";host.style.placeItems="center";host.style.height="auto";host.style.minHeight="0";
- host.innerHTML='<div class="audio-player libby-player"><img class="audio-cover" src="'+esc(loan.item.cover_url||"")+'" alt="Cover of '+esc(loan.item.title)+'"><div class="audio-book-info"><h2>'+esc(loan.item.title)+'</h2><p>'+esc(loan.item.author||"Unknown author")+'</p>'+(loan.item.narrator?'<p class="small">Narrated by '+esc(loan.item.narrator)+'</p>':'')+'</div><div class="audio-progress"><span id="audio-current">0:00</span><input id="audio-range" type="range" min="0" max="1000" value="0" aria-label="Listening progress"><span id="audio-duration">0:00</span></div><div class="audio-main-controls"><button id="audio-back" class="audio-skip" aria-label="Back 15 seconds">↶<small>15</small></button><button id="audio-play" class="audio-play" aria-label="Play">▶</button><button id="audio-forward" class="audio-skip" aria-label="Forward 15 seconds">↷<small>15</small></button></div><div class="audio-extra-controls"><button id="audio-speed">1× speed</button><span class="small">Audiobook</span></div><p class="audio-status">Your listening position saves automatically.</p></div>';
+ host.innerHTML='<div class="audio-player libby-player"><img class="audio-cover" src="'+esc(loan.item.cover_url||"")+'" alt="Cover of '+esc(loan.item.title)+'"><div class="audio-book-info"><h2>'+esc(loan.item.title)+'</h2><p>'+esc(loan.item.author||"Unknown author")+'</p>'+(loan.item.narrator?'<p class="small">Narrated by '+esc(loan.item.narrator)+'</p>':'')+'</div><div class="audio-progress"><div class="audio-progress-labels"><span id="audio-current">0:00</span><strong id="audio-percent">0%</strong><span id="audio-remaining">--:--</span></div><input id="audio-range" type="range" min="0" max="1000" value="0" aria-label="Listening position"></div><div class="audio-main-controls"><button id="audio-back" class="audio-skip" aria-label="Back 15 seconds">↶<small>15</small></button><button id="audio-play" class="audio-play" aria-label="Play">▶</button><button id="audio-forward" class="audio-skip" aria-label="Forward 15 seconds">↷<small>15</small></button></div><div class="audio-extra-controls"><button id="audio-speed">1× speed</button><span class="small">Audiobook</span></div><p class="audio-status">Your listening position saves automatically.</p></div>';
  const range=$("#audio-range");
  $("#audio-play").onclick=()=>{if(audio.paused)audio.play().catch(()=>toast("Playback couldn't start. Tap play again.",true));else audio.pause()};
  $("#audio-back").onclick=()=>seekAudio(-15);$("#audio-forward").onclick=()=>seekAudio(15);
