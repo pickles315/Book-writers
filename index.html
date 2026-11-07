@@ -106,6 +106,15 @@ button{color:var(--button-ink)}
   .audio-main-controls .audio-play{width:68px;height:68px;min-width:68px}
 }
 
+
+/* Theme-aware falling-books transition for the Loans page */
+.bw-book-rain{position:fixed;inset:0;z-index:24;overflow:hidden;pointer-events:none}
+.bw-falling-book{position:absolute;top:-100px;width:clamp(30px,4vw,48px);height:clamp(43px,5.8vw,66px);border:2px solid var(--ink);border-radius:4px 7px 7px 4px;background:linear-gradient(90deg,var(--green-soft) 0 13%,var(--green) 14% 100%);box-shadow:5px 7px 14px #0003;opacity:0;animation:bw-book-fall var(--fall-time) cubic-bezier(.25,.65,.4,1) var(--delay) forwards}
+.bw-falling-book:before{content:"";position:absolute;inset:7px 5px 7px 9px;border:1px solid color-mix(in srgb,var(--button-ink) 55%,transparent);border-radius:2px;background:linear-gradient(145deg,var(--gold),var(--green-soft) 75%)}
+.bw-falling-book:after{content:"B";position:absolute;inset:0;display:grid;place-items:center;color:var(--green);font:700 1.15rem Georgia,serif;text-shadow:0 1px 0 var(--card)}
+.bw-falling-book i{position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--button-ink);opacity:.5;z-index:2}
+@keyframes bw-book-fall{0%{transform:translate3d(0,-5vh,0) rotate(0deg);opacity:0}12%{opacity:1}100%{transform:translate3d(35px,115vh,0) rotate(var(--spin));opacity:0}}
+@media(prefers-reduced-motion:reduce){.bw-falling-book{animation-duration:.01ms!important;animation-delay:0s!important}}
 </style>
 </head>
 <body>
@@ -139,11 +148,11 @@ button{color:var(--button-ink)}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-5"></script>
+<script src="./library.js?v=library-6"></script>
 <script src="./book-details.js?v=book-details-3"></script>
 <script src="./requests.js?v=2"></script>
 <script src="./features.js?v=3"></script>
-<script src="./offline.js?v=2"></script>
+<script src="./offline.js?v=3"></script>
 <script src="./extras.js?v=3"></script>
 </body>
 </html>
