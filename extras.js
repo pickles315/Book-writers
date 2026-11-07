@@ -70,7 +70,7 @@ async function loadAdminAnnouncements(){
 }
 function attachCollectionTools(){
  const host=$("#book-detail-content"),actions=host?.querySelector(".detail-actions");
- if(!host||!actions||!host.querySelector("h1")||actions.querySelector("#bw-extra-collection"))return;
+ if(!host||!actions||!host.querySelector("h1")||host.querySelector("#bw-extra-collection"))return;
  const wrap=document.createElement("div");wrap.className="bw-detail-actions-extra";wrap.innerHTML='<select id="bw-detail-collection"><option value="">Choose a collection</option></select><button type="button" class="ghost" id="bw-extra-collection">Add to collection</button>';
  actions.insertAdjacentElement("afterend",wrap);
  api("collections").then(data=>{$("#bw-detail-collection").innerHTML='<option value="">Choose a collection</option>'+(data.collections||[]).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join("")}).catch(()=>{});
