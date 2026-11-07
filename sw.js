@@ -1,4 +1,4 @@
-const CACHE_NAME="bookwriters-shell-v18";
+const CACHE_NAME="bookwriters-shell-v19";
 const LOCAL_FILES=["./","./index.html","./library.js?v=library-14","./book-details.js?v=book-details-5","./requests.js?v=2","./features.js?v=3","./offline.js?v=3","./extras.js?v=3"];
 const CDN_FILES=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0","https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"];
 
