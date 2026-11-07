@@ -206,14 +206,23 @@ Deno.serve(async (req: Request) => {
       }))) });
     }
     if (action === "borrow") {
-      const { data, error } = await db.rpc("library_borrow_item", { p_card_id: card.id, p_item_id: body.item_id });
+      const itemId = String(body.item_id || "");
+      const { data: reservation } = await db.from("library_waitlist").select("id,card_id").eq("item_id", itemId).eq("status", "ready").order("created_at").limit(1).maybeSingle();
+      if (reservation && reservation.card_id !== card.id) return fail("A returned copy is being held for the next reader on the waitlist.", 409);
+      const { data, error } = await db.rpc("library_borrow_item", { p_card_id: card.id, p_item_id: itemId });
       if (error) return fail(error.message.includes("NO_COPIES") ? "No copies are available right now." : error.message.includes("ALREADY") ? "You already have this item on loan." : "Could not borrow this item.", 409);
+      if (reservation?.card_id === card.id) await db.from("library_waitlist").delete().eq("id", reservation.id);
       return json({ loan_id: data });
     }
     if (action === "return") {
       const { data, error } = await db.rpc("library_return_item", { p_card_id: card.id, p_loan_id: body.loan_id });
       if (error) throw error;
       if (!data) return fail("That loan could not be returned.", 404);
+      const { data: returnedLoan } = await db.from("library_loans").select("item_id").eq("id", String(body.loan_id || "")).maybeSingle();
+      if (returnedLoan?.item_id) {
+        const { data: nextUp } = await db.from("library_waitlist").select("id").eq("item_id", returnedLoan.item_id).eq("status", "waiting").order("created_at").limit(1).maybeSingle();
+        if (nextUp) await db.from("library_waitlist").update({ status: "ready", updated_at: new Date().toISOString() }).eq("id", nextUp.id);
+      }
       return json({ ok: true });
     }
     if (action === "progress") {
@@ -338,6 +347,230 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
 
+
+
+    if (action === "wishlist") {
+      const { data, error } = await db.from("library_wishlist").select("item_id,created_at").eq("card_id", card.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      const ids = (data || []).map((x: any) => x.item_id);
+      const { data: rows, error: itemError } = ids.length ? await db.from("library_items").select("id,title,author,media_type,age_classification,cover_path").in("id", ids) : { data: [], error: null };
+      if (itemError) throw itemError;
+      const map = new Map((rows || []).map((x: any) => [x.id, x]));
+      return json({ items: await Promise.all((data || []).filter((x: any) => map.has(x.item_id)).map(async (x: any) => ({ ...map.get(x.item_id), created_at: x.created_at, cover_url: await signedCover(map.get(x.item_id)?.cover_path || null) }))) });
+    }
+    if (action === "wishlist-add") {
+      const itemId = String(body.item_id || "");
+      const { error } = await db.from("library_wishlist").upsert({ card_id: card.id, item_id: itemId }, { onConflict: "card_id,item_id", ignoreDuplicates: true });
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "wishlist-remove") {
+      const { error } = await db.from("library_wishlist").delete().eq("card_id", card.id).eq("item_id", String(body.item_id || ""));
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "reviews") {
+      const itemId = String(body.item_id || "");
+      const { data, error } = await db.from("library_reviews").select("id,card_id,rating,review,created_at,updated_at").eq("item_id", itemId).order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = data || [];
+      return json({ reviews: rows.map((x: any) => ({ ...x, is_mine: x.card_id === card.id, card_id: undefined })), average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
+    }
+    if (action === "review-save") {
+      const itemId = String(body.item_id || "");
+      const rating = Number(body.rating);
+      const review = String(body.review || "").trim();
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) return fail("Choose a rating from 1 to 5.");
+      if (review.length > 1000) return fail("Review must be 1,000 characters or fewer.");
+      const { data, error } = await db.from("library_reviews").upsert({ card_id: card.id, item_id: itemId, rating, review, updated_at: new Date().toISOString() }, { onConflict: "card_id,item_id" }).select("id,rating,review,updated_at").single();
+      if (error) throw error;
+      return json({ review: data });
+    }
+    if (action === "waitlist") {
+      const { data, error } = await db.from("library_waitlist").select("id,item_id,status,created_at").eq("card_id", card.id).in("status", ["waiting","ready"]).order("created_at", { ascending: false });
+      if (error) throw error;
+      const ids = (data || []).map((x: any) => x.item_id);
+      const { data: rows, error: itemError } = ids.length ? await db.from("library_items").select("id,title,author,media_type,cover_path").in("id", ids) : { data: [], error: null };
+      if (itemError) throw itemError;
+      const map = new Map((rows || []).map((x: any) => [x.id, x]));
+      return json({ items: await Promise.all((data || []).map(async (x: any) => ({ ...x, item: map.get(x.item_id), cover_url: await signedCover(map.get(x.item_id)?.cover_path || null) }))) });
+    }
+    if (action === "waitlist-join") {
+      const itemId = String(body.item_id || "");
+      const { data: item, error: itemError } = await db.from("library_items").select("id,total_copies").eq("id", itemId).maybeSingle();
+      if (itemError) throw itemError;
+      if (!item) return fail("Book not found.", 404);
+      const { count, error: countError } = await db.from("library_loans").select("id", { count: "exact", head: true }).eq("item_id", itemId).is("returned_at", null).gt("due_at", new Date().toISOString());
+      if (countError) throw countError;
+      if ((item.total_copies - (count || 0)) > 0) return fail("A copy is available now. You can borrow it from Discover.");
+      const { error } = await db.from("library_waitlist").insert({ card_id: card.id, item_id: itemId });
+      if (error?.code === "23505") return fail("You are already on this waitlist.");
+      if (error) throw error;
+      return json({ ok: true }, 201);
+    }
+    if (action === "waitlist-cancel") {
+      const { error } = await db.from("library_waitlist").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", String(body.waitlist_id || "")).eq("card_id", card.id).in("status", ["waiting","ready"]);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "recent-view") {
+      const itemId = String(body.item_id || "");
+      const { error } = await db.from("library_recent_views").upsert({ card_id: card.id, item_id: itemId, viewed_at: new Date().toISOString() }, { onConflict: "card_id,item_id" });
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "recent-views") {
+      const { data, error } = await db.from("library_recent_views").select("item_id,viewed_at").eq("card_id", card.id).order("viewed_at", { ascending: false }).limit(12);
+      if (error) throw error;
+      const ids = (data || []).map((x: any) => x.item_id);
+      const { data: rows, error: itemError } = ids.length ? await db.from("library_items").select("id,title,author,media_type,age_classification,cover_path").in("id", ids) : { data: [], error: null };
+      if (itemError) throw itemError;
+      const map = new Map((rows || []).map((x: any) => [x.id, x]));
+      return json({ items: await Promise.all((data || []).filter((x: any) => map.has(x.item_id)).map(async (x: any) => ({ ...map.get(x.item_id), viewed_at: x.viewed_at, cover_url: await signedCover(map.get(x.item_id)?.cover_path || null) }))) });
+    }
+    if (action === "reader-bookmarks" || action === "reader-notes") {
+      const table = action === "reader-bookmarks" ? "library_bookmarks" : "library_notes";
+      const select = action === "reader-bookmarks" ? "id,loan_id,location,label,created_at" : "id,loan_id,content,created_at,updated_at";
+      let query = db.from(table).select(select).eq("card_id", card.id).order("created_at", { ascending: false });
+      if (body.loan_id) query = query.eq("loan_id", String(body.loan_id));
+      const { data, error } = await query;
+      if (error) throw error;
+      return json({ entries: data || [] });
+    }
+    if (action === "bookmark-add") {
+      const loanId = String(body.loan_id || ""), location = String(body.location || "").trim(), label = String(body.label || "").trim();
+      if (!location || location.length > 500 || label.length > 120) return fail("Enter a valid bookmark location and label.");
+      const { data: loan } = await db.from("library_loans").select("id").eq("id", loanId).eq("card_id", card.id).is("returned_at", null).maybeSingle();
+      if (!loan) return fail("That loan is no longer active.", 404);
+      const { data, error } = await db.from("library_bookmarks").insert({ card_id: card.id, loan_id: loanId, location, label }).select("id,loan_id,location,label,created_at").single();
+      if (error) throw error;
+      return json({ entry: data }, 201);
+    }
+    if (action === "bookmark-delete" || action === "note-delete") {
+      const table = action === "bookmark-delete" ? "library_bookmarks" : "library_notes";
+      const { error } = await db.from(table).delete().eq("id", String(body.id || "")).eq("card_id", card.id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "note-add") {
+      const loanId = String(body.loan_id || ""), content = String(body.content || "").trim();
+      if (!content || content.length > 3000) return fail("Notes must be between 1 and 3,000 characters.");
+      const { data: loan } = await db.from("library_loans").select("id").eq("id", loanId).eq("card_id", card.id).is("returned_at", null).maybeSingle();
+      if (!loan) return fail("That loan is no longer active.", 404);
+      const { data, error } = await db.from("library_notes").insert({ card_id: card.id, loan_id: loanId, content }).select("id,loan_id,content,created_at").single();
+      if (error) throw error;
+      return json({ entry: data }, 201);
+    }
+    if (action === "reader-stats") {
+      const [{ count: allLoans, error: allError }, { count: activeLoans, error: activeError }, { data: progress, error: progressError }, { count: wishlistCount, error: wishError }] = await Promise.all([
+        db.from("library_loans").select("id", { count: "exact", head: true }).eq("card_id", card.id),
+        db.from("library_loans").select("id", { count: "exact", head: true }).eq("card_id", card.id).is("returned_at", null).gt("due_at", new Date().toISOString()),
+        db.from("library_progress").select("audio_position_seconds,current_page,total_pages").in("loan_id", (await db.from("library_loans").select("id").eq("card_id", card.id)).data?.map((x: any) => x.id) || []),
+        db.from("library_wishlist").select("item_id", { count: "exact", head: true }).eq("card_id", card.id)
+      ]);
+      if (allError || activeError || progressError || wishError) throw allError || activeError || progressError || wishError;
+      const minutes = (progress || []).reduce((n: number, x: any) => n + Number(x.audio_position_seconds || 0), 0) / 60;
+      const pages = (progress || []).reduce((n: number, x: any) => n + Number(x.current_page || 0), 0);
+      return json({ total_loans: allLoans || 0, active_loans: activeLoans || 0, wishlist: wishlistCount || 0, listening_minutes: Math.round(minutes), pages_read: pages });
+    }
+    if (action === "recommendations") {
+      const { data: history, error: historyError } = await db.from("library_loans").select("item_id").eq("card_id", card.id).order("borrowed_at", { ascending: false }).limit(30);
+      if (historyError) throw historyError;
+      const ids = [...new Set((history || []).map((x: any) => x.item_id))];
+      const { data: viewed } = await db.from("library_recent_views").select("item_id").eq("card_id", card.id);
+      const excluded = [...new Set([...ids, ...(viewed || []).map((x: any) => x.item_id)])];
+      const { data: prefs } = ids.length ? await db.from("library_items").select("media_type").in("id", ids) : { data: [] };
+      const counts = new Map<string, number>();
+      for (const x of prefs || []) counts.set(x.media_type, (counts.get(x.media_type) || 0) + 1);
+      const preferred = [...counts.entries()].sort((a,b) => b[1]-a[1])[0]?.[0];
+      let q = db.from("library_items").select("id,title,author,media_type,age_classification,total_copies,cover_path").order("created_at", { ascending: false }).limit(8);
+      if (preferred) q = q.eq("media_type", preferred);
+      if (excluded.length) q = q.not("id", "in", "(" + excluded.join(",") + ")");
+      const { data, error } = await q;
+      if (error) throw error;
+      return json({ items: await Promise.all((data || []).map(async (x: any) => ({ ...x, cover_url: await signedCover(x.cover_path) }))) });
+    }
+    if (action === "admin-analytics") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const [cards, items, loans, overdue, requests, waiting] = await Promise.all([
+        db.from("library_cards").select("id", { count: "exact", head: true }).is("disabled_at", null),
+        db.from("library_items").select("id", { count: "exact", head: true }),
+        db.from("library_loans").select("id", { count: "exact", head: true }).is("returned_at", null).gt("due_at", new Date().toISOString()),
+        db.from("library_loans").select("id", { count: "exact", head: true }).is("returned_at", null).lte("due_at", new Date().toISOString()),
+        db.from("library_book_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        db.from("library_waitlist").select("id", { count: "exact", head: true }).eq("status", "waiting")
+      ]);
+      for (const x of [cards,items,loans,overdue,requests,waiting]) if (x.error) throw x.error;
+      return json({ active_cards: cards.count || 0, catalogue_items: items.count || 0, active_loans: loans.count || 0, overdue_loans: overdue.count || 0, pending_requests: requests.count || 0, waitlist_entries: waiting.count || 0 });
+    }
+    if (action === "admin-loans") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const { data, error } = await db.from("library_loans").select("id,card_id,item_id,borrowed_at,due_at,returned_at").is("returned_at", null).order("due_at");
+      if (error) throw error;
+      const itemIds = [...new Set((data || []).map((x: any) => x.item_id))], cardIds = [...new Set((data || []).map((x: any) => x.card_id))];
+      const [{ data: itemRows }, { data: cardRows }] = await Promise.all([
+        itemIds.length ? db.from("library_items").select("id,title,author").in("id", itemIds) : { data: [] },
+        cardIds.length ? db.from("library_cards").select("id,display_name,card_number").in("id", cardIds) : { data: [] }
+      ]);
+      const im = new Map((itemRows || []).map((x: any) => [x.id,x])), cm = new Map((cardRows || []).map((x: any) => [x.id,x]));
+      return json({ loans: (data || []).map((x: any) => ({ ...x, item: im.get(x.item_id), member: cm.get(x.card_id) ? { display_name: cm.get(x.card_id).display_name, card_suffix: String(cm.get(x.card_id).card_number).slice(-4) } : null })) });
+    }
+    if (action === "admin-extend-loan") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const loanId = String(body.loan_id || ""), days = Number(body.days);
+      if (!Number.isInteger(days) || days < 1 || days > 30) return fail("Choose an extension from 1 to 30 days.");
+      const { data: loan, error: readError } = await db.from("library_loans").select("id,due_at").eq("id", loanId).is("returned_at", null).maybeSingle();
+      if (readError) throw readError;
+      if (!loan) return fail("Active loan not found.", 404);
+      const base = new Date(Math.max(Date.now(), new Date(loan.due_at).getTime()));
+      base.setDate(base.getDate() + days);
+      const { error } = await db.from("library_loans").update({ due_at: base.toISOString() }).eq("id", loanId).is("returned_at", null);
+      if (error) throw error;
+      return json({ ok: true, due_at: base.toISOString() });
+    }
+    if (action === "book-request-create") {
+      const title = String(body.title || "").trim();
+      const author = String(body.author || "").trim();
+      const reason = String(body.reason || "").trim();
+      if (!title || title.length > 180) return fail("Enter a title up to 180 characters.");
+      if (author.length > 120) return fail("Author must be 120 characters or fewer.");
+      if (reason.length > 1000) return fail("Reason must be 1,000 characters or fewer.");
+      const { data, error } = await db.from("library_book_requests")
+        .insert({ card_id: card.id, title, author, reason })
+        .select("id,title,author,reason,status,admin_note,created_at").single();
+      if (error) throw error;
+      return json({ request: data }, 201);
+    }
+    if (action === "book-requests") {
+      const { data, error } = await db.from("library_book_requests")
+        .select("id,title,author,reason,status,admin_note,created_at,updated_at")
+        .eq("card_id", card.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      return json({ requests: data || [] });
+    }
+    if (action === "admin-book-requests") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const { data, error } = await db.from("library_book_requests")
+        .select("id,title,author,reason,status,admin_note,created_at,card_id")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return json({ requests: data || [] });
+    }
+    if (action === "admin-update-book-request") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const requestId = String(body.request_id || "");
+      const status = String(body.status || "");
+      const adminNote = String(body.admin_note || "").trim();
+      if (!requestId) return fail("Request ID is missing.");
+      if (!["pending", "approved", "declined"].includes(status)) return fail("Choose a valid request status.");
+      if (adminNote.length > 1000) return fail("Admin note must be 1,000 characters or fewer.");
+      const { data, error } = await db.from("library_book_requests")
+        .update({ status, admin_note: adminNote, updated_at: new Date().toISOString() })
+        .eq("id", requestId).select("id,status,admin_note").maybeSingle();
+      if (error) throw error;
+      if (!data) return fail("Request not found.", 404);
+      return json({ request: data });
+    }
     if (action === "delete-card") {
       if (card.role === "admin") return fail("The administrator card cannot be deleted here.", 403);
       await db.from("library_cards").update({ disabled_at: new Date().toISOString() }).eq("id", card.id);
