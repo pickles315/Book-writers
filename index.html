@@ -96,6 +96,20 @@ button{color:var(--button-ink)}
 .audio-progress input{appearance:none!important;-webkit-appearance:none!important;display:block;width:100%;height:4px!important;min-height:4px!important;margin:0!important;padding:0!important;border:0!important;border-radius:99px!important;outline:none;background:linear-gradient(to right,var(--green) 0%,var(--green) var(--played,0%),var(--line) var(--played,0%),var(--line) 100%)!important;cursor:pointer;box-shadow:none!important}
 .audio-progress input::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--green);border:2px solid var(--paper);box-shadow:0 0 0 1px var(--green)}
 .audio-progress input::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid var(--paper);box-shadow:0 0 0 1px var(--green)}
+/* Audiobook timeline: solid scrub line with the reference-style tick ruler */
+.audio-progress{gap:12px}
+.audio-progress input[type=range]{position:relative;z-index:2;appearance:none!important;-webkit-appearance:none!important;display:block!important;width:100%!important;height:5px!important;min-height:5px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:linear-gradient(to right,var(--green) 0%,var(--green) var(--played,0%),var(--line) var(--played,0%),var(--line) 100%)!important;box-shadow:none!important;outline:none!important;touch-action:pan-y}
+.audio-progress input[type=range]::-webkit-slider-runnable-track{height:4px!important;border:0!important;border-radius:0!important;background:transparent!important}
+.audio-progress input[type=range]::-moz-range-track{height:4px!important;border:0!important;border-radius:0!important;background:transparent!important}
+.audio-progress input[type=range]::-webkit-slider-thumb{-webkit-appearance:none!important;appearance:none!important;width:12px!important;height:12px!important;margin-top:-4px!important;border:2px solid var(--paper)!important;border-radius:50%!important;background:var(--green)!important;box-shadow:0 0 0 1px var(--green)!important}
+.audio-progress input[type=range]::-moz-range-thumb{width:9px!important;height:9px!important;border:2px solid var(--paper)!important;border-radius:50%!important;background:var(--green)!important;box-shadow:0 0 0 1px var(--green)!important}
+.audio-ticks{position:relative;display:flex;align-items:center;justify-content:space-between;width:100%;height:48px;padding:0 2px;margin-top:2px;overflow:visible}
+.audio-ticks i{display:block;flex:0 0 1px;height:24px;background:var(--line);opacity:.8}
+.audio-ticks i:nth-child(5n+1){height:38px;opacity:1}
+.audio-ticks i:nth-child(10n+1){height:44px}
+.audio-tick-marker{position:absolute;top:-3px;bottom:0;left:0;width:2px;background:var(--ink);transform:translateX(-1px);transition:left .12s linear}
+.audio-tick-marker:after{content:"";position:absolute;left:-4px;bottom:-1px;width:10px;height:7px;background:var(--green);clip-path:polygon(0 0,100% 0,50% 100%)}
+
 .audio-main-controls{display:flex;align-items:center;justify-content:center;gap:clamp(16px,6vw,32px);margin:22px 0 14px}
 .audio-main-controls button{background:transparent;color:var(--ink);padding:8px;border-radius:50%;min-width:44px}
 .audio-main-controls .audio-play{width:72px;height:72px;min-width:72px;background:var(--green);color:var(--button-ink);font-size:1.55rem;margin:0}
@@ -179,7 +193,7 @@ body:has(.audio-mini-player.visible){padding-bottom:76px}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-9"></script>
+<script src="./library.js?v=library-10"></script>
 <script src="./book-details.js?v=book-details-3"></script>
 <script src="./requests.js?v=2"></script>
 <script src="./features.js?v=3"></script>
