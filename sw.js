@@ -4,7 +4,7 @@ const CDN_FILES=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0","h
 self.addEventListener("install",event=>{
  event.waitUntil((async()=>{
   const cache=await caches.open(CACHE_NAME);
-  await Promise.all([...LOCAL_FILES,...CDN_FILES].map(async url=>{try{const response=await fetch(url,{mode:"cors"});if(response.ok)await cache.put(url,response)}catch{}}));
+  await Promise.all([...LOCAL_FILES,...CDN_FILES].map(async url=>{try{const request=new Request(new URL(url,self.registration.scope).href);const response=await fetch(request,{mode:"cors"});if(response.ok)await cache.put(request,response)}catch{}}));
   self.skipWaiting();
  })());
 });
