@@ -325,7 +325,7 @@ Deno.serve(async (req: Request) => {
       const itemId = String(body.item_id || "");
       const { data: item } = await db.from("library_items").select("id").eq("id", itemId).maybeSingle();
       if (!item) return fail("Book not found.", 404);
-      const filePath = itemId + "/media.epub";
+      const filePath = itemId + "/media-" + crypto.randomUUID() + ".epub";
       const { data, error } = await db.storage.from("library-media").createSignedUploadUrl(filePath);
       if (error) throw error;
       return json({ file_path: filePath, upload: data });
@@ -334,11 +334,12 @@ Deno.serve(async (req: Request) => {
       if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
       const itemId = String(body.item_id || ""), filePath = String(body.file_path || "");
       if (!filePath || !filePath.startsWith(itemId + "/")) return fail("Invalid EPUB upload path.");
-      const { data: item, error: readError } = await db.from("library_items").select("id,title,released").eq("id", itemId).maybeSingle();
+      const { data: item, error: readError } = await db.from("library_items").select("id,title,released,file_path").eq("id", itemId).maybeSingle();
       if (readError) throw readError;
       if (!item) return fail("Book not found.", 404);
       const { error } = await db.from("library_items").update({ file_path: filePath, released: true }).eq("id", itemId);
       if (error) throw error;
+      if (item.file_path && item.file_path !== filePath) await db.storage.from("library-media").remove([item.file_path]);
       const { data: subscribers } = await db.from("library_release_alerts").select("card_id").eq("item_id", itemId);
       const notices = (subscribers || []).filter((x:any)=>x.card_id !== card.id).map((x:any)=>({ card_id:x.card_id, kind:"book-released", title:"A book is now available", message:item.title+" has been released and is ready to borrow.", source_key:"released:"+itemId }));
       if (notices.length) await db.from("library_notifications").upsert(notices, { onConflict:"card_id,source_key", ignoreDuplicates:true });
