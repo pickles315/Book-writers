@@ -108,13 +108,15 @@ button{color:var(--button-ink)}
 }
 
 
-/* Full-screen theme curtain and slow falling books */
-.bw-book-rain{position:fixed;inset:0;z-index:999;overflow:hidden;pointer-events:none;background:var(--green);transform:translateY(100%);animation:bw-curtain-sweep 3.35s cubic-bezier(.72,0,.28,1) forwards}
+/* Full-screen theme curtain and slow falling books.
+   Animate top instead of transforming the overlay: Android WebView can
+   animate the child books while failing to paint a transformed parent. */
+.bw-book-rain{position:fixed;left:0;right:0;top:100%;width:100%;height:100vh;z-index:999;display:block;overflow:hidden;pointer-events:none;background-color:var(--green,#315c45);animation:bw-curtain-sweep 3.35s cubic-bezier(.72,0,.28,1) forwards}
 .bw-falling-book{position:absolute;top:-12vh;width:clamp(34px,4.5vw,54px);height:clamp(49px,6.2vw,74px);border:2px solid var(--gold);border-radius:4px 8px 8px 4px;background:var(--gold);box-shadow:5px 8px 16px #0003;opacity:0;animation:bw-book-drift var(--fall-time) cubic-bezier(.25,.55,.35,1) var(--delay) both}
 .bw-falling-book:before{content:"";position:absolute;inset:8px 6px 8px 11px;border:1px solid var(--green);border-radius:2px;background:var(--gold)}
 .bw-falling-book:after{content:"B";position:absolute;inset:0;display:grid;place-items:center;color:var(--green);font:700 1.15rem Georgia,serif}
 .bw-falling-book i{position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--green);opacity:.55;z-index:2}
-@keyframes bw-curtain-sweep{0%{transform:translateY(100%)}22%{transform:translateY(0)}76%{transform:translateY(0)}100%{transform:translateY(100%)}}
+@keyframes bw-curtain-sweep{0%{top:100%}22%{top:0}76%{top:0}100%{top:100%}}
 @keyframes bw-book-drift{0%{transform:translate3d(-12px,-8vh,0) rotate(0deg);opacity:0}12%{opacity:1}82%{opacity:1}100%{transform:translate3d(34px,118vh,0) rotate(var(--spin));opacity:0}}
 @media(prefers-reduced-motion:reduce){.bw-book-rain{animation-duration:2s!important}.bw-falling-book{animation-duration:1.2s!important;animation-delay:.25s!important}}
 </style>
