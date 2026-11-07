@@ -35,6 +35,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Check JavaScript syntax
+        run: node --check library.js && node --check book-details.js && node --check requests.js && node --check features.js
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
