@@ -119,6 +119,28 @@ button{color:var(--button-ink)}
 @keyframes bw-curtain-sweep{0%{top:100%}22%{top:0}76%{top:0}100%{top:100%}}
 @keyframes bw-book-drift{0%{transform:translate3d(-12px,-8vh,0) rotate(0deg);opacity:0}12%{opacity:1}82%{opacity:1}100%{transform:translate3d(34px,118vh,0) rotate(var(--spin));opacity:0}}
 @media(prefers-reduced-motion:reduce){.bw-book-rain{animation-duration:2s!important}.bw-falling-book{animation-duration:1.2s!important;animation-delay:.25s!important}}
+
+/* Dedicated reader overlay and persistent audiobook mini-player */
+#reader-panel.reader-open{position:fixed;inset:0;z-index:1000;display:block;overflow:auto;background:var(--paper);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overscroll-behavior:contain}
+.reader-fullscreen{min-height:100dvh;height:100dvh;box-sizing:border-box;margin:0;border:0;border-radius:0;padding:clamp(12px,3vw,26px);display:flex;flex-direction:column;background:var(--paper)}
+.reader-topbar{display:flex;align-items:center;gap:12px;min-height:46px;margin-bottom:12px}
+.reader-topbar strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.reader-close{width:38px;height:38px;min-width:38px;border-radius:50%;padding:0;font-size:1.7rem;line-height:1;background:var(--green-soft);color:var(--ink)}
+.reader-topbar .small{min-width:48px;text-align:right}
+.reader-fullscreen .reader-stage{flex:1;min-height:0;height:auto;max-height:none}
+.reader-fullscreen .reader-stage.audio-stage{background:var(--paper);overflow:auto}
+.reader-fullscreen .audio-player.libby-player{width:min(560px,100%)}
+.audio-mini-player{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:1100;display:none;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);box-shadow:0 8px 28px #0004}
+.audio-mini-player.visible{display:flex}
+.audio-mini-player button{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:1px;width:36px;height:36px;padding:3px;border-radius:50%;background:var(--green-soft);color:var(--green);font-size:1.05rem}
+.audio-mini-player button small{font-size:.58rem;font-weight:800}
+.audio-mini-player .mini-open{width:42px;height:42px;padding:0;overflow:hidden;border-radius:8px}
+.audio-mini-player .mini-open img{width:100%;height:100%;object-fit:cover}
+.audio-mini-player .mini-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.audio-mini-player .mini-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.86rem}
+.audio-mini-player .mini-info span{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+body:has(.audio-mini-player.visible){padding-bottom:76px}
+@media(max-width:650px){.reader-fullscreen{padding:10px}.reader-fullscreen .reader-topbar{margin-bottom:6px}.audio-mini-player{left:7px;right:7px;gap:6px;padding:7px}.audio-mini-player button{width:33px;height:33px}.audio-mini-player .mini-open{width:38px;height:38px}}
 </style>
 </head>
 <body>
@@ -152,7 +174,7 @@ button{color:var(--button-ink)}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-6"></script>
+<script src="./library.js?v=library-7"></script>
 <script src="./book-details.js?v=book-details-3"></script>
 <script src="./requests.js?v=2"></script>
 <script src="./features.js?v=3"></script>
