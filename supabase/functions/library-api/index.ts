@@ -462,16 +462,20 @@ Deno.serve(async (req: Request) => {
       return json({ entry: data }, 201);
     }
     if (action === "reader-stats") {
-      const [{ count: allLoans, error: allError }, { count: activeLoans, error: activeError }, { data: progress, error: progressError }, { count: wishlistCount, error: wishError }] = await Promise.all([
+      const [all, active, wish, loanRows] = await Promise.all([
         db.from("library_loans").select("id", { count: "exact", head: true }).eq("card_id", card.id),
         db.from("library_loans").select("id", { count: "exact", head: true }).eq("card_id", card.id).is("returned_at", null).gt("due_at", new Date().toISOString()),
-        db.from("library_progress").select("audio_position_seconds,current_page,total_pages").in("loan_id", (await db.from("library_loans").select("id").eq("card_id", card.id)).data?.map((x: any) => x.id) || []),
-        db.from("library_wishlist").select("item_id", { count: "exact", head: true }).eq("card_id", card.id)
+        db.from("library_wishlist").select("item_id", { count: "exact", head: true }).eq("card_id", card.id),
+        db.from("library_loans").select("id").eq("card_id", card.id)
       ]);
-      if (allError || activeError || progressError || wishError) throw allError || activeError || progressError || wishError;
-      const minutes = (progress || []).reduce((n: number, x: any) => n + Number(x.audio_position_seconds || 0), 0) / 60;
-      const pages = (progress || []).reduce((n: number, x: any) => n + Number(x.current_page || 0), 0);
-      return json({ total_loans: allLoans || 0, active_loans: activeLoans || 0, wishlist: wishlistCount || 0, listening_minutes: Math.round(minutes), pages_read: pages });
+      if (all.error || active.error || wish.error || loanRows.error) throw all.error || active.error || wish.error || loanRows.error;
+      const loanIds = (loanRows.data || []).map((x: any) => x.id);
+      const progressResult = loanIds.length ? await db.from("library_progress").select("audio_position_seconds,current_page,total_pages").in("loan_id", loanIds) : { data: [], error: null };
+      if (progressResult.error) throw progressResult.error;
+      const progress = progressResult.data || [];
+      const minutes = progress.reduce((n: number, x: any) => n + Number(x.audio_position_seconds || 0), 0) / 60;
+      const pages = progress.reduce((n: number, x: any) => n + Number(x.current_page || 0), 0);
+      return json({ total_loans: all.count || 0, active_loans: active.count || 0, wishlist: wish.count || 0, listening_minutes: Math.round(minutes), pages_read: pages });
     }
     if (action === "recommendations") {
       const { data: history, error: historyError } = await db.from("library_loans").select("item_id").eq("card_id", card.id).order("borrowed_at", { ascending: false }).limit(30);
