@@ -34,49 +34,80 @@ async function loadPublicStats(){try{const data=await api("public-stats");$("#pu
 async function loadDiscover(){const box=$("#catalogue");box.innerHTML='<div class="empty">Loading the shelves…</div>';try{const data=await api("discover");items=data.items||[];const genres=[...new Set(items.map(x=>x.genre).filter(x=>x&&x!=="Uncategorized"))].sort((a,b)=>a.localeCompare(b));const select=$("#genre-filter"),current=select.value;select.innerHTML='<option value="">All genres</option>'+genres.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join("");select.value=current;renderDiscover()}catch(e){box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
 function renderDiscover(){const q=$("#search").value.trim().toLowerCase(),type=$("#type-filter").value,age=$("#age-filter").value,genre=$("#genre-filter").value,series=$("#series-filter").value,sort=$("#sort-filter").value;let rows=items.filter(x=>(!type||x.media_type===type)&&(!age||x.age_classification===age)&&(!genre||x.genre===genre)&&(!series||(series==="series"?!!x.series_name:!x.series_name))&&(!q||(x.title+" "+x.author+" "+(x.narrator||"")+" "+(x.series_name||"")+" "+(x.genre||"")).toLowerCase().includes(q)));if(sort==="popular")rows.sort((a,b)=>(b.borrow_count||0)-(a.borrow_count||0));else if(sort==="rating")rows.sort((a,b)=>(b.average_rating||0)-(a.average_rating||0)||(b.review_count||0)-(a.review_count||0));else if(sort==="title")rows.sort((a,b)=>a.title.localeCompare(b.title));else rows.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));$("#catalogue").innerHTML=rows.length?rows.map(x=>itemCard(x)).join(""):'<div class="empty">Nothing matches that search yet.</div>';$$("[data-borrow]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api("borrow",{item_id:b.dataset.borrow});toast("Added to your loans.");await loadPublicStats();await loadDiscover()}catch(e){toast(e.message,true);b.disabled=false}})}
 async function loadLoans(){closeReader();const box=$("#loan-list");box.innerHTML='<div class="empty">Loading your loans…</div>';try{let useCache=offlineMode||!navigator.onLine,saved=null;if(useCache)saved=await window.bwOffline?.getLoans(profile?.card_number);if(!useCache){try{const data=await api("loans");loans=data.loans||[];await window.bwOffline?.saveLoans(profile.card_number,loans)}catch(error){saved=await window.bwOffline?.getLoans(profile?.card_number);if(!saved)throw error;useCache=true;offlineMode=true}}if(useCache){if(!saved)throw new Error("No saved loan list yet. Connect once, then open Loans to prepare offline access.");loans=saved}box.innerHTML=loans.length?loans.map(x=>itemCard({...x.item,id:x.id,item_id:x.item.id,due_at:x.due_at},true)).join(""):'<div class="empty">You haven’t borrowed anything yet.</div>';$$("[data-return]").forEach(b=>{b.disabled=useCache;b.title=useCache?"Connect to the internet to return a book.":"";b.onclick=async()=>{try{await api("return",{loan_id:b.dataset.return});toast("Item returned.");await loadPublicStats();await loadLoans();await loadDiscover()}catch(e){toast(e.message,true)}}});$$("[data-open-loan]").forEach(b=>b.onclick=()=>openLoan(b.dataset.openLoan));}catch(e){box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
-async function openLoan(loanId){const loan=loans.find(x=>x.id===loanId);if(!loan)return;closeReader();readerBook={loanId,item:loan.item,progress:loan.progress};const panel=$("#reader-panel");panel.innerHTML='<section class="reader"><div class="reader-controls"><button class="secondary" id="reader-back">← My loans</button><strong>'+esc(loan.item.title)+'</strong><span class="small">Due '+new Date(loan.due_at).toLocaleDateString()+'</span></div><div id="reader-content" class="reader-stage" style="display:grid;place-items:center">Opening…</div><div class="reader-controls" id="reader-buttons"></div></section>';$("#reader-back").onclick=()=>{closeReader();window.scrollTo({top:0,behavior:"smooth"})};panel.scrollIntoView({behavior:"smooth",block:"start"});try{let offlineUrl=null;try{offlineUrl=window.bwOffline?await window.bwOffline.getUrl(loan.item.id):null}catch(offlineError){console.warn("Offline cache unavailable",offlineError)}let media;if(offlineUrl){media={url:offlineUrl}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}if(loan.item.media_type==="audiobook")await openAudio(media.url,loan);else await openEpub(media.url,loan)}catch(e){$("#reader-content").textContent=e.message;}}function closeReader(){if(audio){audio.pause();audio=null}if(progressTimer){clearInterval(progressTimer);progressTimer=null}if(readerBook?.rendition){try{readerBook.rendition.destroy()}catch{}}readerBook=null;const panel=$("#reader-panel");if(panel)panel.innerHTML=""}
+async function openLoan(loanId){
+ const loan=loans.find(x=>x.id===loanId);if(!loan)return;
+ closeReader();
+ readerBook={loanId,item:loan.item,progress:loan.progress};
+ const panel=$("#reader-panel");
+ panel.innerHTML='<section class="reader reader-fullscreen"><div class="reader-topbar"><button class="reader-close" id="reader-close" aria-label="Close reader">×</button><strong>'+esc(loan.item.title)+'</strong><span class="small">'+(loan.item.media_type==="audiobook"?"Audiobook":"Book")+'</span></div><div id="reader-content" class="reader-stage" style="display:grid;place-items:center">Opening…</div><div class="reader-controls" id="reader-buttons"></div></section>';
+ $("#reader-close").onclick=closeReader;
+ panel.classList.add("reader-open");
+ if(loan.item.media_type==="audiobook"&&audio&&currentAudioLoanId===loan.id){renderAudioView(loan);return}
+ try{
+  let offlineUrl=null;try{offlineUrl=window.bwOffline?await window.bwOffline.getUrl(loan.item.id):null}catch(offlineError){console.warn("Offline cache unavailable",offlineError)}
+  let media;if(offlineUrl){media={url:offlineUrl}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}
+  if(loan.item.media_type==="audiobook")await openAudio(media.url,loan);else await openEpub(media.url,loan);
+ }catch(e){const host=$("#reader-content");if(host)host.textContent=e.message}
+}
+function closeReader(){
+ if(progressTimer){clearInterval(progressTimer);progressTimer=null}
+ if(readerBook?.rendition){try{readerBook.rendition.destroy()}catch{}}
+ readerBook=null;
+ const panel=$("#reader-panel");if(panel){panel.innerHTML="";panel.classList.remove("reader-open")}
+}
 async function saveProgress(values){if(!readerBook)return;try{await api("progress",{loan_id:readerBook.loanId,...values})}catch(e){console.warn(e)}}
 async function openEpub(url,loan){const host=$("#reader-content");host.innerHTML="";host.style.display="block";const book=ePub(url);const rendition=book.renderTo(host,{width:"100%",height:"100%",spread:"none",flow:"paginated"});readerBook.rendition=rendition;const move=dir=>dir<0?rendition.prev():rendition.next();rendition.hooks.content.register(contents=>{const doc=contents.document;let start=null;doc.addEventListener("pointerdown",e=>{start={x:e.clientX,y:e.clientY}},{passive:true});doc.addEventListener("pointerup",e=>{if(!start)return;const dx=e.clientX-start.x,dy=e.clientY-start.y;start=null;if(Math.abs(dx)>65&&Math.abs(dx)>Math.abs(dy)*1.25)move(dx>0?-1:1)},{passive:true});doc.addEventListener("keydown",e=>{if(e.key==="ArrowLeft")move(-1);if(e.key==="ArrowRight")move(1)})});await rendition.display(loan.progress?.reading_location||undefined);const buttons=$("#reader-buttons");buttons.innerHTML='<button class="secondary" id="page-prev">Previous</button><span class="small" id="page-label">Reading</span><button id="page-next">Next</button>';$("#page-prev").onclick=()=>move(-1);$("#page-next").onclick=()=>move(1);rendition.on("relocated",loc=>{const page=loc.start?.displayed?.page||0,total=loc.start?.displayed?.total||null;$("#page-label").textContent=total?"Page "+page+" of "+total:"Reading";saveProgress({current_page:page,total_pages:total,reading_location:loc.start?.cfi||""})});host.tabIndex=0;host.onkeydown=e=>{if(e.key==="ArrowLeft")move(-1);if(e.key==="ArrowRight")move(1)}}
-async function openAudio(url,loan){
- const host=$("#reader-content");
- host.classList.add("audio-stage");
- host.style.display="grid";
- host.style.placeItems="center";
- host.style.height="auto";
- host.style.minHeight="0";
- host.innerHTML='<div class="audio-player libby-player">'+
-  '<img class="audio-cover" src="'+esc(loan.item.cover_url||"")+'" alt="Cover of '+esc(loan.item.title)+'">'+
-  '<div class="audio-book-info"><h2>'+esc(loan.item.title)+'</h2>'+
-  '<p>'+esc(loan.item.author||"Unknown author")+'</p>'+
-  (loan.item.narrator?'<p class="small">Narrated by '+esc(loan.item.narrator)+'</p>':'')+
-  '</div>'+
-  '<div class="audio-progress"><span id="audio-current">0:00</span><input id="audio-range" type="range" min="0" max="1000" value="0" aria-label="Listening progress"><span id="audio-duration">0:00</span></div>'+
-  '<div class="audio-main-controls">'+
-   '<button id="audio-back" class="audio-skip" aria-label="Back 15 seconds">↶<small>15</small></button>'+
-   '<button id="audio-play" class="audio-play" aria-label="Play">▶</button>'+
-   '<button id="audio-forward" class="audio-skip" aria-label="Forward 15 seconds">↷<small>15</small></button>'+
-  '</div>'+
-  '<div class="audio-extra-controls"><button id="audio-speed">1× speed</button><span class="small">Audiobook</span></div>'+
-  '<p class="audio-status">Your listening position saves automatically.</p>'+
-  '</div>';
- audio=new Audio(url);
- const range=$("#audio-range"),play=$("#audio-play");
- const time=v=>{if(!Number.isFinite(v))return"0:00";return Math.floor(v/60)+":"+String(Math.floor(v%60)).padStart(2,"0")};
- const seek=seconds=>{if(audio&&Number.isFinite(audio.duration))audio.currentTime=Math.max(0,Math.min(audio.duration,audio.currentTime+seconds))};
- audio.preload="metadata";
- audio.addEventListener("loadedmetadata",()=>{audio.currentTime=Math.min(Number(loan.progress?.audio_position_seconds)||0,audio.duration||0);$("#audio-duration").textContent=time(audio.duration)});
- audio.addEventListener("timeupdate",()=>{range.value=audio.duration?String(audio.currentTime/audio.duration*1000):"0";$("#audio-current").textContent=time(audio.currentTime)});
- play.onclick=async()=>{if(audio.paused){try{await audio.play();play.textContent="Ⅱ";play.setAttribute("aria-label","Pause")}catch(e){toast("Playback couldn't start. Tap play again.",true)}}else{audio.pause()}};
- audio.addEventListener("play",()=>{play.textContent="Ⅱ";play.setAttribute("aria-label","Pause")});
- audio.addEventListener("pause",()=>{play.textContent="▶";play.setAttribute("aria-label","Play");saveProgress({audio_position_seconds:audio.currentTime})});
- audio.addEventListener("ended",()=>{play.textContent="▶";play.setAttribute("aria-label","Play");saveProgress({audio_position_seconds:audio.duration||audio.currentTime})});
- $("#audio-back").onclick=()=>seek(-15);
- $("#audio-forward").onclick=()=>seek(15);
+function formatAudioTime(v){if(!Number.isFinite(v))return"0:00";const h=Math.floor(v/3600),m=Math.floor(v%3600/60),s=Math.floor(v%60);return h? h+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"):m+":"+String(s).padStart(2,"0")}
+function ensureMiniPlayer(){
+ let mini=$("#audio-mini-player");if(mini)return mini;
+ mini=document.createElement("div");mini.id="audio-mini-player";mini.className="audio-mini-player";mini.innerHTML='<button class="mini-open" id="mini-open" aria-label="Open audiobook"><img id="mini-cover" alt=""></button><div class="mini-info"><strong id="mini-title"></strong><span id="mini-time">0:00</span></div><button id="mini-back" aria-label="Back 15 seconds">↶<small>15</small></button><button id="mini-play" aria-label="Pause">Ⅱ</button><button id="mini-forward" aria-label="Forward 15 seconds">↷<small>15</small></button>';
+ document.body.appendChild(mini);
+ $("#mini-open").onclick=()=>{const loan=loans.find(x=>x.id===currentAudioLoanId);if(loan)openLoan(loan.id)};
+ $("#mini-back").onclick=()=>seekAudio(-15);$("#mini-forward").onclick=()=>seekAudio(15);
+ $("#mini-play").onclick=()=>{if(audio?.paused)audio.play().catch(()=>toast("Playback couldn't start. Tap play again.",true));else audio?.pause()};
+ return mini;
+}
+let currentAudioLoanId=null;
+function seekAudio(seconds){if(audio&&Number.isFinite(audio.duration))audio.currentTime=Math.max(0,Math.min(audio.duration,audio.currentTime+seconds))}
+function updateAudioUI(){
+ if(!audio)return;
+ const playing=!audio.paused&&!audio.ended;
+ const current=formatAudioTime(audio.currentTime),duration=formatAudioTime(audio.duration);
+ const mini=$("#audio-mini-player");
+ if(mini){mini.classList.toggle("visible",playing);$("#mini-play").textContent=playing?"Ⅱ":"▶";$("#mini-play").setAttribute("aria-label",playing?"Pause":"Play");$("#mini-time").textContent=current+" / "+duration}
+ const play=$("#audio-play");if(play){play.textContent=playing?"Ⅱ":"▶";play.setAttribute("aria-label",playing?"Pause":"Play")}
+ const now=$("#audio-current"),total=$("#audio-duration"),range=$("#audio-range");
+ if(now)now.textContent=current;if(total)total.textContent=duration;
+ if(range&&audio.duration)range.value=String(audio.currentTime/audio.duration*1000);
+}
+async function saveAudioProgress(){if(!audio||!currentAudioLoanId)return;try{await api("progress",{loan_id:currentAudioLoanId,audio_position_seconds:audio.currentTime})}catch(e){console.warn(e)}}
+function renderAudioView(loan){
+ const host=$("#reader-content");if(!host)return;
+ host.classList.add("audio-stage");host.style.display="grid";host.style.placeItems="center";host.style.height="auto";host.style.minHeight="0";
+ host.innerHTML='<div class="audio-player libby-player"><img class="audio-cover" src="'+esc(loan.item.cover_url||"")+'" alt="Cover of '+esc(loan.item.title)+'"><div class="audio-book-info"><h2>'+esc(loan.item.title)+'</h2><p>'+esc(loan.item.author||"Unknown author")+'</p>'+(loan.item.narrator?'<p class="small">Narrated by '+esc(loan.item.narrator)+'</p>':'')+'</div><div class="audio-progress"><span id="audio-current">0:00</span><input id="audio-range" type="range" min="0" max="1000" value="0" aria-label="Listening progress"><span id="audio-duration">0:00</span></div><div class="audio-main-controls"><button id="audio-back" class="audio-skip" aria-label="Back 15 seconds">↶<small>15</small></button><button id="audio-play" class="audio-play" aria-label="Play">▶</button><button id="audio-forward" class="audio-skip" aria-label="Forward 15 seconds">↷<small>15</small></button></div><div class="audio-extra-controls"><button id="audio-speed">1× speed</button><span class="small">Audiobook</span></div><p class="audio-status">Your listening position saves automatically.</p></div>';
+ const range=$("#audio-range");
+ $("#audio-play").onclick=()=>{if(audio.paused)audio.play().catch(()=>toast("Playback couldn't start. Tap play again.",true));else audio.pause()};
+ $("#audio-back").onclick=()=>seekAudio(-15);$("#audio-forward").onclick=()=>seekAudio(15);
  range.oninput=()=>{if(audio.duration)audio.currentTime=Number(range.value)/1000*audio.duration};
- const speeds=[1,1.25,1.5,1.75,2,0.75];let speedIndex=0;
+ const speeds=[1,1.25,1.5,1.75,2,.75];let speedIndex=speeds.indexOf(audio.playbackRate);if(speedIndex<0)speedIndex=0;
+ $("#audio-speed").textContent=audio.playbackRate+"× speed";
  $("#audio-speed").onclick=()=>{speedIndex=(speedIndex+1)%speeds.length;audio.playbackRate=speeds[speedIndex];$("#audio-speed").textContent=speeds[speedIndex]+"× speed"};
- progressTimer=setInterval(()=>{if(audio&&!audio.paused)saveProgress({audio_position_seconds:audio.currentTime})},10000);
- $("#reader-buttons").innerHTML='<span class="small">Listening progress is saved automatically.</span>';
+ $("#reader-buttons").innerHTML='<span class="small">Listening position saves automatically.</span>';
+ updateAudioUI();
+}
+async function openAudio(url,loan){
+ currentAudioLoanId=loan.id;
+ if(audio){audio.pause();audio=null}
+ audio=new Audio(url);audio.preload="metadata";
+ const mini=ensureMiniPlayer();$("#mini-cover").src=loan.item.cover_url||"";$("#mini-cover").alt="";$("#mini-title").textContent=loan.item.title;
+ audio.addEventListener("loadedmetadata",()=>{audio.currentTime=Math.min(Number(loan.progress?.audio_position_seconds)||0,audio.duration||0);updateAudioUI()});
+ audio.addEventListener("timeupdate",updateAudioUI);
+ audio.addEventListener("play",updateAudioUI);
+ audio.addEventListener("pause",()=>{updateAudioUI();saveAudioProgress()});
+ audio.addEventListener("ended",()=>{updateAudioUI();saveAudioProgress()});
+ renderAudioView(loan);
+ if(progressTimer)clearInterval(progressTimer);
+ progressTimer=setInterval(()=>{if(audio&&!audio.paused)saveAudioProgress()},10000);
 }
 function addItemForm(){
  const box=modal('<h2>Add to the catalogue</h2><p class="small">Upload an EPUB for a book or graphic novel, or an MP3 for an audiobook.</p><label>Title</label><input id="new-title" maxlength="180" required><div class="form-grid"><div><label>Author (optional)</label><input id="new-author" maxlength="120" placeholder="Author name"></div><div><label>Narrator (optional)</label><input id="new-narrator" maxlength="120"></div></div><label>Description</label><textarea id="new-description" rows="4" maxlength="4000" placeholder="What is this book about?"></textarea><label>Genre</label><input id="new-genre" maxlength="60" placeholder="Fantasy, mystery, science fiction…"><label>Book type</label><select id="new-series-mode"><option value="standalone">Standalone book</option><option value="series">Part of a series</option></select><div id="new-series-fields" class="form-grid hidden"><div><label>Series name</label><input id="new-series-name" maxlength="120" placeholder="Series title"></div><div><label>Book number (optional)</label><input id="new-series-number" type="number" min="1" max="999" placeholder="1"></div></div><div class="form-grid"><div><label>Media type</label><select id="new-type"><option value="book">Book</option><option value="graphic_novel">Graphic novel</option><option value="audiobook">Audiobook</option></select></div><div><label>Age classification</label><select id="new-age"><option>All Ages</option><option>Juvenile</option><option>Adult</option></select></div></div><div class="form-grid"><div id="new-pages-wrap"><label>Page count</label><input id="new-pages" type="number" min="1" max="100000" placeholder="Optional"></div><div id="new-duration-wrap"><label>Audiobook length (minutes)</label><input id="new-duration" type="number" min="1" max="14400" placeholder="Optional"></div></div><label>Number of copies</label><input id="new-copies" type="number" min="1" max="10000" value="1"><label id="media-label">EPUB file</label><input id="new-media" type="file" accept=".epub,application/epub+zip"><label>Cover image</label><input id="new-cover" type="file" accept="image/png,image/jpeg,image/webp"><p id="new-error" class="small"></p><div class="actions"><button class="ghost" id="new-cancel">Cancel</button><button id="new-save">Add item</button></div>');
