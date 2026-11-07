@@ -50,7 +50,7 @@ async function openLoan(loanId){
  }catch(e){const host=$("#reader-content");if(host)host.textContent=e.message}
 }
 function closeReader(){
- if(progressTimer){clearInterval(progressTimer);progressTimer=null}
+ if(!audio&&progressTimer){clearInterval(progressTimer);progressTimer=null}
  if(readerBook?.rendition){try{readerBook.rendition.destroy()}catch{}}
  readerBook=null;
  const panel=$("#reader-panel");if(panel){panel.innerHTML="";panel.classList.remove("reader-open")}
@@ -102,8 +102,8 @@ async function openAudio(url,loan){
  const mini=ensureMiniPlayer();$("#mini-cover").src=loan.item.cover_url||"";$("#mini-cover").alt="";$("#mini-title").textContent=loan.item.title;
  audio.addEventListener("loadedmetadata",()=>{audio.currentTime=Math.min(Number(loan.progress?.audio_position_seconds)||0,audio.duration||0);updateAudioUI()});
  audio.addEventListener("timeupdate",updateAudioUI);
- audio.addEventListener("play",updateAudioUI);
- audio.addEventListener("pause",()=>{updateAudioUI();saveAudioProgress()});
+ audio.addEventListener("play",()=>{updateAudioUI();if(progressTimer)clearInterval(progressTimer);progressTimer=setInterval(()=>{if(audio&&!audio.paused)saveAudioProgress()},10000)});
+ audio.addEventListener("pause",()=>{updateAudioUI();saveAudioProgress();if(progressTimer){clearInterval(progressTimer);progressTimer=null}});
  audio.addEventListener("ended",()=>{updateAudioUI();saveAudioProgress()});
  renderAudioView(loan);
  if(progressTimer)clearInterval(progressTimer);
