@@ -95,10 +95,10 @@ document.addEventListener("click",e=>{
  api("recent-view",{item_id:itemId}).catch(()=>{});
 });
 function enhanceDetails(){
- const host=$("#book-detail-content");if(!host||!host.innerHTML||host.dataset.bwEnhanced==="1")return;
+ const host=$("#book-detail-content");if(!host||!host.innerHTML)return;
  const title=host.querySelector("h1");if(!title)return;
- const id=window.bwCurrentDetailId;if(!id)return;
- host.dataset.bwEnhanced="1";
+ const id=window.bwCurrentDetailId;if(!id||host.dataset.bwEnhancedFor===id)return;
+ host.dataset.bwEnhancedFor=id;
  const actions=document.createElement("div");actions.className="bw-detail-actions-extra";
  actions.innerHTML='<button class="secondary" id="bw-detail-wishlist">Add to wishlist</button><button class="ghost" id="bw-detail-waitlist">Join waitlist</button>';
  const review=document.createElement("section");review.className="bw-review-box";
