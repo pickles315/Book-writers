@@ -161,7 +161,7 @@ Deno.serve(async (req: Request) => {
     if (action === "discover") {
       await expireLoans();
       const [{ data: items, error }, { data: active, error: loanError }, { data: allLoans, error: allLoanError }, { data: reviews, error: reviewError }] = await Promise.all([
-        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at,genre,series_name,series_number").order("created_at", { ascending: false }),
+        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at,genre,series_name,series_number,released,preview_file_path").order("created_at", { ascending: false }),
         db.from("library_loans").select("item_id").is("returned_at", null).gt("due_at", new Date().toISOString()),
         db.from("library_loans").select("item_id"),
         db.from("library_reviews").select("item_id,rating"),
@@ -173,9 +173,9 @@ Deno.serve(async (req: Request) => {
       for (const review of reviews || []) { const v=ratingTotals.get(review.item_id)||{sum:0,count:0};v.sum+=review.rating;v.count++;ratingTotals.set(review.item_id,v); }
       const result = await Promise.all((items || []).map(async (item) => {
         const rating=ratingTotals.get(item.id)||{sum:0,count:0};
-        return { ...item, available_copies: Math.max(0, item.total_copies - (counts.get(item.id) || 0)),
+        return { ...item, released: item.released !== false, available_copies: item.released === false ? 0 : Math.max(0, item.total_copies - (counts.get(item.id) || 0)),
           borrow_count: popularity.get(item.id)||0, average_rating: rating.count?rating.sum/rating.count:null, review_count:rating.count,
-          cover_url: await signedCover(item.cover_path) };
+          cover_url: await signedCover(item.cover_path), preview_url: item.preview_file_path ? (await db.storage.from("library-media").createSignedUrl(item.preview_file_path, 3600)).data?.signedUrl || null : null };
       }));
       return json({ items: result });
     }
@@ -183,12 +183,12 @@ Deno.serve(async (req: Request) => {
     if (action === "item-detail") {
       const itemId = String(body.item_id || "");
       const [{ data: item, error }, { count, error: countError }] = await Promise.all([
-        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at,genre,series_name,series_number").eq("id", itemId).maybeSingle(),
+        db.from("library_items").select("id,title,author,narrator,description,media_type,age_classification,total_copies,page_count,audio_duration_seconds,cover_path,created_at,genre,series_name,series_number,released,preview_file_path").eq("id", itemId).maybeSingle(),
         db.from("library_loans").select("id", { count: "exact", head: true }).eq("item_id", itemId).is("returned_at", null).gt("due_at", new Date().toISOString()),
       ]);
       if (error || countError) throw error || countError;
       if (!item) return fail("Book not found.", 404);
-      return json({ item: { ...item, available_copies: Math.max(0, item.total_copies - (count || 0)), cover_url: await signedCover(item.cover_path) } });
+      return json({ item: { ...item, released: item.released !== false, available_copies: item.released === false ? 0 : Math.max(0, item.total_copies - (count || 0)), cover_url: await signedCover(item.cover_path), preview_url: item.preview_file_path ? (await db.storage.from("library-media").createSignedUrl(item.preview_file_path, 3600)).data?.signedUrl || null : null } });
     }
 
     if (action === "loans") {
@@ -213,6 +213,8 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "borrow") {
       const itemId = String(body.item_id || "");
+      const { data: borrowable } = await db.from("library_items").select("released,file_path").eq("id", itemId).maybeSingle();
+      if (!borrowable || !borrowable.released || !borrowable.file_path) return fail("This title has not been released yet.", 409);
       const { data: reservation } = await db.from("library_waitlist").select("id,card_id").eq("item_id", itemId).eq("status", "ready").order("created_at").limit(1).maybeSingle();
       if (reservation && reservation.card_id !== card.id) return fail("A returned copy is being held for the next reader on the waitlist.", 409);
       const { data, error } = await db.rpc("library_borrow_item", { p_card_id: card.id, p_item_id: itemId });
@@ -260,8 +262,9 @@ Deno.serve(async (req: Request) => {
         .eq("id", loanId).eq("item_id", itemId).eq("card_id", card.id)
         .is("returned_at", null).gt("due_at", new Date().toISOString()).maybeSingle();
       if (!loan && card.role !== "admin") return fail("Borrow this item to open it.", 403);
-      const { data: item } = await db.from("library_items").select("file_path").eq("id", itemId).maybeSingle();
+      const { data: item } = await db.from("library_items").select("file_path,released").eq("id", itemId).maybeSingle();
       if (!item) return fail("Item not found.", 404);
+      if (!item.released || !item.file_path) return fail("This title has not been released yet.", 409);
       const { data, error } = await db.storage.from("library-media").createSignedUrl(item.file_path, 3600);
       if (error) throw error;
       return json({ url: data.signedUrl });
@@ -288,8 +291,9 @@ Deno.serve(async (req: Request) => {
       const age = String(body.age_classification || "");
       if (!["book", "graphic_novel", "audiobook"].includes(mediaType)) return fail("Choose a valid media type.");
       if (!["Juvenile", "Adult", "All Ages"].includes(age)) return fail("Choose an age classification.");
+      const released = body.released !== false;
       const row = {
-        id: body.item_id, title: String(body.title || "").trim(),
+        id: body.item_id || crypto.randomUUID(), title: String(body.title || "").trim(),
         author: String(body.author || "").trim() || "Unknown author", narrator: String(body.narrator || "").trim() || null,
         media_type: mediaType, age_classification: age,
         description: String(body.description || "").trim().slice(0, 4000),
@@ -299,18 +303,114 @@ Deno.serve(async (req: Request) => {
         page_count: mediaType === "audiobook" ? null : (Number.isInteger(Number(body.page_count)) && Number(body.page_count) > 0 ? Number(body.page_count) : null),
         audio_duration_seconds: mediaType === "audiobook" ? (Number.isInteger(Number(body.audio_duration_seconds)) && Number(body.audio_duration_seconds) > 0 ? Number(body.audio_duration_seconds) : null) : null,
         total_copies: Math.max(1, Math.min(10000, Math.floor(Number(body.total_copies) || 1))),
-        file_path: body.file_path, cover_path: body.cover_path, created_by: card.id,
+        file_path: released ? String(body.file_path || "") || null : null,
+        cover_path: String(body.cover_path || "") || null, released, preview_file_path: null, created_by: card.id,
       };
+      if (!row.title || row.title.length > 180) return fail("Enter a title up to 180 characters.");
+      if (released && (!row.file_path || !row.cover_path)) return fail("Upload the EPUB/audio file and cover, or save this as unreleased.");
       if (row.series_number !== null && (!Number.isInteger(row.series_number) || row.series_number < 1 || row.series_number > 999)) return fail("Series book number must be between 1 and 999.");
       if (row.series_number !== null && !row.series_name) return fail("Enter the series name or choose Standalone.");
       const { data, error } = await db.from("library_items").insert(row).select("id").single();
       if (error) throw error;
-      const { data: readers } = await db.from("library_cards").select("id").is("disabled_at", null);
-      const notices = (readers || []).filter((x:any)=>x.id!==card.id).map((x:any)=>({ card_id:x.id, kind:"new-book", title:"New book added", message:row.title+" was added to the catalogue.", source_key:"new-book:"+data.id }));
-      if (notices.length) await db.from("library_notifications").upsert(notices, { onConflict:"card_id,source_key", ignoreDuplicates:true });
+      if (released) {
+        const { data: readers } = await db.from("library_cards").select("id").is("disabled_at", null);
+        const notices = (readers || []).filter((x:any)=>x.id!==card.id).map((x:any)=>({ card_id:x.id, kind:"new-book", title:"New book added", message:row.title+" was added to the catalogue.", source_key:"new-book:"+data.id }));
+        if (notices.length) await db.from("library_notifications").upsert(notices, { onConflict:"card_id,source_key", ignoreDuplicates:true });
+      }
       return json({ id: data.id }, 201);
     }
 
+    if (action === "admin-release-start") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || "");
+      const { data: item } = await db.from("library_items").select("id").eq("id", itemId).maybeSingle();
+      if (!item) return fail("Book not found.", 404);
+      const filePath = itemId + "/media.epub";
+      const { data, error } = await db.storage.from("library-media").createSignedUploadUrl(filePath);
+      if (error) throw error;
+      return json({ file_path: filePath, upload: data });
+    }
+    if (action === "admin-release-item") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || ""), filePath = String(body.file_path || "");
+      if (!filePath || !filePath.startsWith(itemId + "/")) return fail("Invalid EPUB upload path.");
+      const { data: item, error: readError } = await db.from("library_items").select("id,title,released").eq("id", itemId).maybeSingle();
+      if (readError) throw readError;
+      if (!item) return fail("Book not found.", 404);
+      const { error } = await db.from("library_items").update({ file_path: filePath, released: true }).eq("id", itemId);
+      if (error) throw error;
+      const { data: subscribers } = await db.from("library_release_alerts").select("card_id").eq("item_id", itemId);
+      const notices = (subscribers || []).filter((x:any)=>x.card_id !== card.id).map((x:any)=>({ card_id:x.card_id, kind:"book-released", title:"A book is now available", message:item.title+" has been released and is ready to borrow.", source_key:"released:"+itemId }));
+      if (notices.length) await db.from("library_notifications").upsert(notices, { onConflict:"card_id,source_key", ignoreDuplicates:true });
+      await db.from("library_release_alerts").delete().eq("item_id", itemId);
+      return json({ ok: true, notified: notices.length });
+    }
+    if (action === "admin-remove-epub") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || "");
+      const { data: activeLoans, error: loanError } = await db.from("library_loans").select("id").eq("item_id", itemId).is("returned_at", null).gt("due_at", new Date().toISOString()).limit(1);
+      if (loanError) throw loanError;
+      if (activeLoans?.length) return fail("This book has an active loan. Wait until it is returned before removing its EPUB.", 409);
+      const { data: item, error: readError } = await db.from("library_items").select("file_path").eq("id", itemId).maybeSingle();
+      if (readError) throw readError;
+      if (!item) return fail("Book not found.", 404);
+      const { error } = await db.from("library_items").update({ file_path: null, released: false }).eq("id", itemId);
+      if (error) throw error;
+      if (item.file_path) await db.storage.from("library-media").remove([item.file_path]);
+      return json({ ok: true });
+    }
+    if (action === "admin-preview-start") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || ""), ext = String(body.ext || "epub").toLowerCase();
+      if (ext !== "epub") return fail("Preview samples must be EPUB files.");
+      const { data: item } = await db.from("library_items").select("id").eq("id", itemId).maybeSingle();
+      if (!item) return fail("Book not found.", 404);
+      const path = itemId + "/preview-" + crypto.randomUUID() + ".epub";
+      const { data, error } = await db.storage.from("library-media").createSignedUploadUrl(path);
+      if (error) throw error;
+      return json({ file_path: path, upload: data });
+    }
+    if (action === "admin-preview-set") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const itemId = String(body.item_id || ""), path = body.file_path ? String(body.file_path) : null;
+      if (path && !path.startsWith(itemId + "/preview-")) return fail("Invalid preview upload path.");
+      const { data: item, error: readError } = await db.from("library_items").select("preview_file_path").eq("id", itemId).maybeSingle();
+      if (readError) throw readError;
+      if (!item) return fail("Book not found.", 404);
+      const { error } = await db.from("library_items").update({ preview_file_path: path }).eq("id", itemId);
+      if (error) throw error;
+      if (item.preview_file_path && item.preview_file_path !== path) await db.storage.from("library-media").remove([item.preview_file_path]);
+      return json({ ok: true });
+    }
+    if (action === "preview-url") {
+      const itemId = String(body.item_id || "");
+      const { data: item } = await db.from("library_items").select("preview_file_path").eq("id", itemId).maybeSingle();
+      if (!item || !item.preview_file_path) return fail("No sample is available for this title.", 404);
+      const { data, error } = await db.storage.from("library-media").createSignedUrl(item.preview_file_path, 1800);
+      if (error) throw error;
+      return json({ url: data.signedUrl });
+    }
+    if (action === "release-alert-subscribe") {
+      const itemId = String(body.item_id || "");
+      const { data: item } = await db.from("library_items").select("id,released").eq("id", itemId).maybeSingle();
+      if (!item) return fail("Book not found.", 404);
+      if (item.released) return fail("This title is already released.", 409);
+      const { error } = await db.from("library_release_alerts").upsert({ card_id: card.id, item_id: itemId }, { onConflict:"card_id,item_id", ignoreDuplicates:true });
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "release-alert-unsubscribe") {
+      const { error } = await db.from("library_release_alerts").delete().eq("card_id", card.id).eq("item_id", String(body.item_id || ""));
+      if (error) throw error;
+      return json({ ok: true });
+    }
+    if (action === "release-alert-status") {
+      const itemIds = Array.isArray(body.item_ids) ? body.item_ids.map((x:any)=>String(x)).slice(0,100) : [];
+      if (!itemIds.length) return json({ item_ids: [] });
+      const { data, error } = await db.from("library_release_alerts").select("item_id").eq("card_id", card.id).in("item_id", itemIds);
+      if (error) throw error;
+      return json({ item_ids: (data || []).map((x:any)=>x.item_id) });
+    }
     if (action === "admin-cover-start") {
       if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
       const itemId = String(body.item_id || "");
