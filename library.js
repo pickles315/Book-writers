@@ -86,6 +86,8 @@ function addItemForm(){
   const btn=$("#new-save",box),err=$("#new-error",box),type=$("#new-type",box).value,media=$("#new-media",box).files[0],cover=$("#new-cover",box).files[0];btn.disabled=true;err.textContent="";
   try{
    if(!media||!cover)throw new Error("Choose both the media file and a cover image.");
+   if($("#new-series-mode",box).value==="series"&&!$("#new-series-name",box).value.trim())throw new Error("Enter the series name, or choose Standalone book.");
+   if($("#new-series-number",box).value&&(!Number.isInteger(Number($("#new-series-number",box).value))||Number($("#new-series-number",box).value)<1||Number($("#new-series-number",box).value)>999))throw new Error("Series book number must be between 1 and 999.");
    if(type==="audiobook"&&!/\.mp3$/i.test(media.name))throw new Error("Audiobooks must be MP3 files.");
    if(type!=="audiobook"&&!/\.epub$/i.test(media.name))throw new Error("Books and graphic novels must be EPUB files.");
    if(!/^image\/(png|jpeg|webp)$/.test(cover.type))throw new Error("Use a PNG, JPG, or WebP cover.");
