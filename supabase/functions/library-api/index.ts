@@ -305,6 +305,9 @@ Deno.serve(async (req: Request) => {
       if (row.series_number !== null && !row.series_name) return fail("Enter the series name or choose Standalone.");
       const { data, error } = await db.from("library_items").insert(row).select("id").single();
       if (error) throw error;
+      const { data: readers } = await db.from("library_cards").select("id").is("disabled_at", null);
+      const notices = (readers || []).filter((x:any)=>x.id!==card.id).map((x:any)=>({ card_id:x.id, kind:"new-book", title:"New book added", message:row.title+" was added to the catalogue.", source_key:"new-book:"+data.id }));
+      if (notices.length) await db.from("library_notifications").upsert(notices, { onConflict:"card_id,source_key", ignoreDuplicates:true });
       return json({ id: data.id }, 201);
     }
 
@@ -619,6 +622,22 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
     if (action === "notifications") {
+      const dueLimit = new Date(Date.now() + 3 * 86400000).toISOString();
+      const { data: dueLoans, error: dueError } = await db.from("library_loans").select("id,item_id,due_at").eq("card_id", card.id).is("returned_at", null).lte("due_at", dueLimit).order("due_at").limit(20);
+      if (dueError) throw dueError;
+      const dueItemIds = [...new Set((dueLoans || []).map((x:any)=>x.item_id))];
+      const { data: dueItems, error: dueItemError } = dueItemIds.length ? await db.from("library_items").select("id,title").in("id", dueItemIds) : { data: [], error: null };
+      if (dueItemError) throw dueItemError;
+      const dueTitleMap = new Map((dueItems || []).map((x:any)=>[x.id,x.title]));
+      for (const loan of dueLoans || []) {
+        const sourceKey = "due:" + loan.id;
+        const title = dueTitleMap.get(loan.item_id) || "Your borrowed book";
+        const overdue = new Date(loan.due_at).getTime() < Date.now();
+        const message = title + (overdue ? " is overdue." : " is due " + new Date(loan.due_at).toLocaleDateString() + ".");
+        const { data: existing } = await db.from("library_notifications").select("id").eq("card_id", card.id).eq("source_key", sourceKey).maybeSingle();
+        if (existing) await db.from("library_notifications").update({ title: overdue ? "Book overdue" : "Book due soon", message }).eq("id", existing.id).eq("card_id", card.id);
+        else await db.from("library_notifications").insert({ card_id: card.id, kind:"due-date", title: overdue ? "Book overdue" : "Book due soon", message, source_key: sourceKey });
+      }
       const { data, error } = await db.from("library_notifications").select("id,kind,title,message,created_at,read_at").eq("card_id", card.id).order("created_at", { ascending: false }).limit(30);
       if (error) throw error;
       return json({ notifications: data || [], unread: (data || []).filter((x:any)=>!x.read_at).length });
