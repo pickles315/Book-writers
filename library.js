@@ -111,8 +111,56 @@ async function openAudio(url,loan){
  if(progressTimer)clearInterval(progressTimer);
  progressTimer=setInterval(()=>{if(audio&&!audio.paused)saveAudioProgress()},10000);
 }
+function makeImportCover(title){
+ const canvas=document.createElement("canvas");canvas.width=600;canvas.height=900;
+ const ctx=canvas.getContext("2d");
+ const gradient=ctx.createLinearGradient(0,0,600,900);gradient.addColorStop(0,"#172a36");gradient.addColorStop(1,"#315a55");
+ ctx.fillStyle=gradient;ctx.fillRect(0,0,600,900);
+ ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=3;ctx.strokeRect(34,34,532,832);
+ ctx.fillStyle="#d9e8d8";ctx.font="bold 23px Arial";ctx.fillText("BOOKWRITERS",58,95);
+ ctx.fillStyle="#ffffff";ctx.font="bold 46px Georgia";
+ const words=String(title||"Untitled").split(/\s+/);let lines=[],line="";
+ for(const word of words){const test=line?line+" "+word:word;if(ctx.measureText(test).width>470&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);
+ const max=10;if(lines.length>max)lines=lines.slice(0,max);
+ const lineHeight=58;let y=390-(lines.length*lineHeight)/2;
+ for(const part of lines){ctx.fillText(part,58,y,480);y+=lineHeight}
+ ctx.fillStyle="rgba(255,255,255,.72)";ctx.font="20px Arial";ctx.fillText("ADD AUTHOR & DETAILS",58,820);
+ return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(new File([blob],"cover.png",{type:"image/png"})):reject(new Error("Could not create a cover image.")),"image/png"));
+}
+function bulkImportForm(){
+ const box=modal('<h2>Bulk import EPUBs</h2><p class="small">Choose several EPUB files. BookWriters will create a simple temporary cover and leave descriptions and genres for you to edit later.</p><label>EPUB files</label><input id="bulk-epubs" type="file" accept=".epub,application/epub+zip" multiple><p class="small">Titles come from the filenames. Author, genre and description will be left blank or set to defaults.</p><div id="bulk-progress" class="small" aria-live="polite"></div><p id="bulk-error" class="small"></p><div class="actions"><button class="ghost" id="bulk-cancel">Cancel</button><button id="bulk-start">Import books</button></div>');
+ $("#bulk-cancel",box).onclick=closeModal;
+ $("#bulk-start",box).onclick=async()=>{
+  const btn=$("#bulk-start",box),files=[...$("#bulk-epubs",box).files],status=$("#bulk-progress",box),err=$("#bulk-error",box);
+  err.textContent="";if(!files.length){err.textContent="Choose at least one EPUB file.";return}
+  const invalid=files.find(file=>!file.name.toLowerCase().endsWith(".epub"));
+  if(invalid){err.textContent=invalid.name+" is not an EPUB file.";return}
+  btn.disabled=true;$("#bulk-epubs",box).disabled=true;let added=0,failed=[];
+  for(let i=0;i<files.length;i++){
+   const file=files[i],title=file.name.replace(/\.epub$/i,"").replace(/[._-]+/g," ").trim()||"Untitled";
+   status.textContent="Importing "+(i+1)+" of "+files.length+": "+title;
+   try{
+    const cover=await makeImportCover(title);
+    const start=await api("upload-start",{media_type:"book",cover_ext:"png"});
+    const [mediaResult,coverResult]=await Promise.all([
+     db.storage.from("library-media").uploadToSignedUrl(start.file_path,start.media_upload.token,file,{contentType:"application/epub+zip"}),
+     db.storage.from("library-media").uploadToSignedUrl(start.cover_path,start.cover_upload.token,cover,{contentType:"image/png"})
+    ]);
+    if(mediaResult.error||coverResult.error)throw mediaResult.error||coverResult.error;
+    await api("item-create",{item_id:start.item_id,file_path:start.file_path,cover_path:start.cover_path,title,author:"Unknown author",narrator:"",description:"",media_type:"book",age_classification:"All Ages",total_copies:1,page_count:null,audio_duration_seconds:null,genre:"Uncategorized",series_name:null,series_number:null});
+    added++;
+   }catch(e){failed.push(file.name+": "+(e.message||"Import failed"))}
+  }
+  status.textContent="Finished: "+added+" of "+files.length+" books added.";
+  if(failed.length)err.textContent=failed.join("\n");
+  if(added){await loadDiscover();if(!failed.length){closeModal();toast(added+" books added to the catalogue.")}else btn.textContent="Close"}
+  else{btn.disabled=false;btn.textContent="Try again"}
+  if(failed.length)btn.onclick=closeModal;
+ };
+}
 function addItemForm(){
- const box=modal('<h2>Add to the catalogue</h2><p class="small">Upload an EPUB for a book or graphic novel, or an MP3 for an audiobook.</p><label>Title</label><input id="new-title" maxlength="180" required><div class="form-grid"><div><label>Author (optional)</label><input id="new-author" maxlength="120" placeholder="Author name"></div><div><label>Narrator (optional)</label><input id="new-narrator" maxlength="120"></div></div><label>Description</label><textarea id="new-description" rows="4" maxlength="4000" placeholder="What is this book about?"></textarea><label>Genre</label><input id="new-genre" maxlength="60" placeholder="Fantasy, mystery, science fiction…"><label>Book type</label><select id="new-series-mode"><option value="standalone">Standalone book</option><option value="series">Part of a series</option></select><div id="new-series-fields" class="form-grid hidden"><div><label>Series name</label><input id="new-series-name" maxlength="120" placeholder="Series title"></div><div><label>Book number (optional)</label><input id="new-series-number" type="number" min="1" max="999" placeholder="1"></div></div><div class="form-grid"><div><label>Media type</label><select id="new-type"><option value="book">Book</option><option value="graphic_novel">Graphic novel</option><option value="audiobook">Audiobook</option></select></div><div><label>Age classification</label><select id="new-age"><option>All Ages</option><option>Juvenile</option><option>Adult</option></select></div></div><div class="form-grid"><div id="new-pages-wrap"><label>Page count</label><input id="new-pages" type="number" min="1" max="100000" placeholder="Optional"></div><div id="new-duration-wrap"><label>Audiobook length (minutes)</label><input id="new-duration" type="number" min="1" max="14400" placeholder="Optional"></div></div><label>Number of copies</label><input id="new-copies" type="number" min="1" max="10000" value="1"><label id="media-label">EPUB file</label><input id="new-media" type="file" accept=".epub,application/epub+zip"><label>Cover image</label><input id="new-cover" type="file" accept="image/png,image/jpeg,image/webp"><p id="new-error" class="small"></p><div class="actions"><button class="ghost" id="new-cancel">Cancel</button><button id="new-save">Add item</button></div>');
+ const box=modal('<h2>Add to the catalogue</h2><p class="small">Upload an EPUB for a book or graphic novel, or an MP3 for an audiobook.</p><button type="button" class="secondary" id="open-bulk-import" style="margin:0 0 14px">Import multiple EPUBs</button><label>Title</label><input id="new-title" maxlength="180" required><div class="form-grid"><div><label>Author (optional)</label><input id="new-author" maxlength="120" placeholder="Author name"></div><div><label>Narrator (optional)</label><input id="new-narrator" maxlength="120"></div></div><label>Description</label><textarea id="new-description" rows="4" maxlength="4000" placeholder="What is this book about?"></textarea><label>Genre</label><input id="new-genre" maxlength="60" placeholder="Fantasy, mystery, science fiction…"><label>Book type</label><select id="new-series-mode"><option value="standalone">Standalone book</option><option value="series">Part of a series</option></select><div id="new-series-fields" class="form-grid hidden"><div><label>Series name</label><input id="new-series-name" maxlength="120" placeholder="Series title"></div><div><label>Book number (optional)</label><input id="new-series-number" type="number" min="1" max="999" placeholder="1"></div></div><div class="form-grid"><div><label>Media type</label><select id="new-type"><option value="book">Book</option><option value="graphic_novel">Graphic novel</option><option value="audiobook">Audiobook</option></select></div><div><label>Age classification</label><select id="new-age"><option>All Ages</option><option>Juvenile</option><option>Adult</option></select></div></div><div class="form-grid"><div id="new-pages-wrap"><label>Page count</label><input id="new-pages" type="number" min="1" max="100000" placeholder="Optional"></div><div id="new-duration-wrap"><label>Audiobook length (minutes)</label><input id="new-duration" type="number" min="1" max="14400" placeholder="Optional"></div></div><label>Number of copies</label><input id="new-copies" type="number" min="1" max="10000" value="1"><label id="media-label">EPUB file</label><input id="new-media" type="file" accept=".epub,application/epub+zip"><label>Cover image</label><input id="new-cover" type="file" accept="image/png,image/jpeg,image/webp"><p id="new-error" class="small"></p><div class="actions"><button class="ghost" id="new-cancel">Cancel</button><button id="new-save">Add item</button></div>');
+ $("#open-bulk-import",box).onclick=()=>{closeModal();bulkImportForm()};
  $("#new-cancel",box).onclick=closeModal;
  const updateMediaPicker=()=>{$("#media-label",box).textContent="EPUB book or MP3 audiobook file";$("#new-media",box).accept=".epub,.mp3,application/epub+zip,audio/mpeg";$("#new-media",box).title="Choose an EPUB or MP3 file";const audio=$("#new-type",box).value==="audiobook";$("#new-pages-wrap",box).classList.toggle("hidden",audio);$("#new-duration-wrap",box).classList.toggle("hidden",!audio)};
  $("#new-series-mode",box).onchange=()=>$("#new-series-fields",box).classList.toggle("hidden",$("#new-series-mode",box).value!=="series");
