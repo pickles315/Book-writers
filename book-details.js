@@ -41,6 +41,8 @@ function editForm(item){
   const btn=$("#edit-save",box),err=$("#edit-error",box);btn.disabled=true;err.textContent="";
   try{
    const type=$("#edit-type",box).value,cover=$("#edit-cover",box).files[0];let coverPath=null;
+   if($("#edit-series-mode",box).value==="series"&&!$("#edit-series-name",box).value.trim())throw new Error("Enter the series name, or choose Standalone book.");
+   if($("#edit-series-number",box).value&&(!Number.isInteger(Number($("#edit-series-number",box).value))||Number($("#edit-series-number",box).value)<1||Number($("#edit-series-number",box).value)>999))throw new Error("Series book number must be between 1 and 999.");
    if(cover){
     if(!/^image\/(png|jpeg|webp)$/.test(cover.type))throw new Error("Use a PNG, JPG, or WebP cover.");
     const ext=cover.type==="image/png"?"png":cover.type==="image/webp"?"webp":"jpg";
