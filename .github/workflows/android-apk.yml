@@ -10,6 +10,7 @@ on:
       - "book-details.js"
       - "requests.js"
       - "features.js"
+      - "extras.js"
       - "offline.js"
       - "sw.js"
       - "supabase/functions/library-api/**"
@@ -42,7 +43,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check JavaScript syntax
-        run: node --check library.js && node --check book-details.js && node --check requests.js && node --check features.js && node --check offline.js && node --check sw.js
+        run: node --check library.js && node --check book-details.js && node --check requests.js && node --check features.js && node --check extras.js && node --check offline.js && node --check sw.js
 
       - name: Set up Java
         uses: actions/setup-java@v4
