@@ -91,6 +91,7 @@ document.addEventListener("click",e=>{
 document.addEventListener("click",e=>{
  const b=e.target.closest("[data-book-detail]");if(!b)return;
  const itemId=b.dataset.bookDetail;
+ window.bwCurrentDetailId=itemId;
  api("recent-view",{item_id:itemId}).catch(()=>{});
 });
 function enhanceDetails(){
