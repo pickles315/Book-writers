@@ -519,6 +519,31 @@ Deno.serve(async (req: Request) => {
       const im = new Map((itemRows || []).map((x: any) => [x.id,x])), cm = new Map((cardRows || []).map((x: any) => [x.id,x]));
       return json({ loans: (data || []).map((x: any) => ({ ...x, item: im.get(x.item_id), member: cm.get(x.card_id) ? { display_name: cm.get(x.card_id).display_name, card_suffix: String(cm.get(x.card_id).card_number).slice(-4) } : null })) });
     }
+    if (action === "admin-overdue-history") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const { data, error } = await db.from("library_loans").select("id,card_id,item_id,borrowed_at,due_at,returned_at").not("returned_at", "is", null).order("returned_at", { ascending: false }).limit(100);
+      if (error) throw error;
+      const expired = (data || []).filter((x: any) => Math.abs(new Date(x.returned_at).getTime() - new Date(x.due_at).getTime()) < 1500);
+      const itemIds = [...new Set(expired.map((x: any) => x.item_id))], cardIds = [...new Set(expired.map((x: any) => x.card_id))];
+      const [{ data: itemRows }, { data: cardRows }] = await Promise.all([
+        itemIds.length ? db.from("library_items").select("id,title,author").in("id", itemIds) : { data: [] },
+        cardIds.length ? db.from("library_cards").select("id,display_name,card_number").in("id", cardIds) : { data: [] }
+      ]);
+      const im = new Map((itemRows || []).map((x: any) => [x.id,x])), cm = new Map((cardRows || []).map((x: any) => [x.id,x]));
+      return json({ loans: expired.map((x: any) => ({ ...x, item: im.get(x.item_id), member: cm.get(x.card_id) ? { display_name: cm.get(x.card_id).display_name, card_suffix: String(cm.get(x.card_id).card_number).slice(-4) } : null })) });
+    }
+    if (action === "admin-restore-loan") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const loanId = String(body.loan_id || ""), days = Number(body.days);
+      if (!Number.isInteger(days) || days < 1 || days > 30) return fail("Choose an extension from 1 to 30 days.");
+      const { data: loan, error: readError } = await db.from("library_loans").select("id,due_at,returned_at").eq("id", loanId).maybeSingle();
+      if (readError) throw readError;
+      if (!loan || !loan.returned_at || Math.abs(new Date(loan.returned_at).getTime() - new Date(loan.due_at).getTime()) >= 1500) return fail("Only automatically expired loans can be restored.", 409);
+      const due = new Date(Date.now() + days * 86400000).toISOString();
+      const { error } = await db.from("library_loans").update({ due_at: due, returned_at: null }).eq("id", loanId);
+      if (error) throw error;
+      return json({ ok: true, due_at: due });
+    }
     if (action === "admin-extend-loan") {
       if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
       const loanId = String(body.loan_id || ""), days = Number(body.days);
