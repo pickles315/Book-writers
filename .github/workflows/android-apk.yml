@@ -8,6 +8,8 @@ on:
       - "index.html"
       - "library.js"
       - "book-details.js"
+      - "requests.js"
+      - "features.js"
       - "supabase/functions/library-api/**"
       - "supabase/migrations/**"
       - ".github/workflows/android-apk.yml"
