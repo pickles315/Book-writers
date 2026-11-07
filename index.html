@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#315c45">
+<script>(()=>{try{const allowed=["light","dark","forest","ember","citrus","ocean","lavender"];const saved=localStorage.getItem("bw-library-theme");document.documentElement.dataset.theme=allowed.includes(saved)?saved:"light"}catch{document.documentElement.dataset.theme="light"}})();</script>
 <title>BookWriters Library</title>
 <meta name="description" content="Discover books, graphic novels, and audiobooks in your library.">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
@@ -114,7 +115,7 @@ button{color:var(--button-ink)}
 .bw-falling-book:after{content:"B";position:absolute;inset:0;display:grid;place-items:center;color:var(--green);font:700 1.15rem Georgia,serif;text-shadow:0 1px 0 var(--card)}
 .bw-falling-book i{position:absolute;left:5px;top:0;bottom:0;width:2px;background:var(--button-ink);opacity:.5;z-index:2}
 @keyframes bw-book-fall{0%{transform:translate3d(0,-5vh,0) rotate(0deg);opacity:0}12%{opacity:1}100%{transform:translate3d(35px,115vh,0) rotate(var(--spin));opacity:0}}
-@media(prefers-reduced-motion:reduce){.bw-falling-book{animation-duration:.01ms!important;animation-delay:0s!important}}
+@media(prefers-reduced-motion:reduce){.bw-falling-book{animation-duration:.65s!important;animation-delay:0s!important}}
 </style>
 </head>
 <body>
