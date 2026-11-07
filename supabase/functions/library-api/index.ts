@@ -99,19 +99,26 @@ Deno.serve(async (req: Request) => {
       const { data: allowed, error: limitError } = await db.rpc("library_check_login_limit", { p_attempt_key: attemptKey });
       if (limitError || allowed === false) return fail("Too many card requests. Try again in 15 minutes.", 429);
       await db.rpc("library_record_failed_login", { p_attempt_key: attemptKey });
-      let cardNumber = "";
-      for (let i = 0; i < 12; i++) {
-        const candidate = randomDigits(12);
-        const { data } = await db.from("library_cards").select("id").eq("card_number", candidate).maybeSingle();
-        if (!data) { cardNumber = candidate; break; }
-      }
-      if (!cardNumber) return fail("Could not create a card right now. Try again.", 503);
       const pin = randomDigits(4);
       const pinHash = await hashPin(pin);
-      const { data: card, error } = await db.from("library_cards")
-        .insert({ card_number: cardNumber, pin_hash: pinHash, role: "reader", display_name: displayName })
-        .select("id").single();
-      if (error) throw error;
+      let cardNumber = "";
+      let card: { id: string } | null = null;
+      for (let i = 0; i < 12; i++) {
+        const candidate = randomDigits(12);
+        const { data, error } = await db.from("library_cards")
+          .insert({ card_number: candidate, pin_hash: pinHash, role: "reader", display_name: displayName })
+          .select("id").single();
+        if (!error && data) {
+          cardNumber = candidate;
+          card = data;
+          break;
+        }
+        // The database unique constraint is the final authority. If another
+        // signup claimed this number between generation and insertion, retry.
+        if (error?.code === "23505") continue;
+        if (error) throw error;
+      }
+      if (!card || !cardNumber) return fail("Could not create a card right now. Try again.", 503);
       const token = await makeSession(card.id);
       return json({ card_number: cardNumber, pin, token, display_name: displayName, role: "reader" }, 201);
     }
