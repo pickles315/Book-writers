@@ -217,17 +217,19 @@ function bulkImportForm(){
  };
 }
 function addUnreleasedForm(){
- const box=modal('<h2>Add an unreleased title</h2><p class="small">Add just the title, author and description now. Readers will see a bell until you upload the full EPUB.</p><label>Title</label><input id="pending-title" maxlength="180" required><label>Author</label><input id="pending-author" maxlength="120" placeholder="Optional"><label>Description</label><textarea id="pending-description" rows="4" maxlength="4000" placeholder="What is this book about?"></textarea><label>Optional EPUB sample for readers</label><input id="pending-preview" type="file" accept=".epub,application/epub+zip"><p id="pending-error" class="small"></p><div class="actions"><button class="ghost" id="pending-cancel">Cancel</button><button id="pending-save">Add unreleased title</button></div>');
+ const box=modal('<h2>Add an unreleased title</h2><p class="small">Add the title, author and description now. You can upload its real cover before the full EPUB is ready.</p><label>Title</label><input id="pending-title" maxlength="180" required><label>Author</label><input id="pending-author" maxlength="120" placeholder="Optional"><label>Description</label><textarea id="pending-description" rows="4" maxlength="4000" placeholder="What is this book about?"></textarea><label>Cover image (optional)</label><input id="pending-cover" type="file" accept="image/png,image/jpeg,image/webp"><label>Optional EPUB sample for readers</label><input id="pending-preview" type="file" accept=".epub,application/epub+zip"><p id="pending-error" class="small"></p><div class="actions"><button class="ghost" id="pending-cancel">Cancel</button><button id="pending-save">Add unreleased title</button></div>');
  $("#pending-cancel",box).onclick=closeModal;
  $("#pending-save",box).onclick=async()=>{
-  const btn=$("#pending-save",box),err=$("#pending-error",box),title=$("#pending-title",box).value.trim(),preview=$("#pending-preview",box).files[0];
+  const btn=$("#pending-save",box),err=$("#pending-error",box),title=$("#pending-title",box).value.trim(),preview=$("#pending-preview",box).files[0],chosenCover=$("#pending-cover",box).files[0];
   btn.disabled=true;err.textContent="";
   try{
    if(!title)throw new Error("Enter a title.");
    if(preview&&!/\.epub$/i.test(preview.name))throw new Error("The sample must be an EPUB file.");
-   const start=await api("upload-start",{media_type:"book",cover_ext:"png"});
-   const cover=await makeImportCover(title);
-   const uploaded=await db.storage.from("library-media").uploadToSignedUrl(start.cover_path,start.cover_upload.token,cover,{contentType:"image/png"});
+   if(chosenCover&&!/^image\/(png|jpeg|webp)$/.test(chosenCover.type))throw new Error("Use a PNG, JPG, or WebP cover.");
+   const ext=chosenCover?(chosenCover.type==="image/png"?"png":chosenCover.type==="image/webp"?"webp":"jpg"):"png";
+   const start=await api("upload-start",{media_type:"book",cover_ext:ext});
+   const cover=chosenCover||await makeImportCover(title);
+   const uploaded=await db.storage.from("library-media").uploadToSignedUrl(start.cover_path,start.cover_upload.token,cover,{contentType:chosenCover?.type||"image/png"});
    if(uploaded.error)throw uploaded.error;
    await api("item-create",{item_id:start.item_id,title,author:$("#pending-author",box).value.trim()||"Unknown author",description:$("#pending-description",box).value,media_type:"book",age_classification:"All Ages",total_copies:1,file_path:null,cover_path:start.cover_path,released:false});
    if(preview){
