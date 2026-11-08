@@ -145,8 +145,8 @@ async function loadLoans(){closeReader();const box=$("#loan-list");box.innerHTML
 async function openLoan(loanId){
  const loan=loans.find(x=>x.id===loanId);if(!loan)return;
  const finishTransition=startBooksTransition();
- history.pushState({bwReader:true},"",location.href);
  closeReader();
+ history.pushState({bwReader:true},"",location.href);
  readerBook={loanId,item:loan.item,progress:loan.progress};
  const panel=$("#reader-panel");
  if(panel.parentElement!==document.body)document.body.appendChild(panel);
@@ -163,6 +163,7 @@ async function openLoan(loanId){
  finally{finishTransition()}
 }
 function closeReader(){
+ if(history.state?.bwReader)history.replaceState({bwPage:currentPage},"",location.href);
  if(!audio&&progressTimer){clearInterval(progressTimer);progressTimer=null}
  if(readerBook?.rendition){try{readerBook.rendition.destroy()}catch{}}
  readerBook=null;
