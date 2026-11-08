@@ -17,7 +17,7 @@ async function api(action,data={}){const controller=new AbortController();const 
 function saveToken(value,details){token=value;localStorage.setItem("bw-library-token",value);sessionStorage.setItem("bw-library-token",value);if(details)rememberAccount(value,details)}
 function clearToken(){removeRememberedAccount();token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token")}
 function showAuth(){profile=null;$("#auth-view").classList.remove("hidden");$("#app-view").classList.add("hidden");$("#navlinks").classList.add("hidden");$("#admin-add").classList.add("hidden");$("#auth-button").textContent="Sign in";$("#auth-button").classList.add("secondary")}
-function showApp(){ $("#auth-view").classList.add("hidden");$("#app-view").classList.remove("hidden");$("#navlinks").classList.remove("hidden");$("#auth-button").textContent="Sign out";$("#auth-button").classList.remove("secondary");$("#admin-add").classList.toggle("hidden",profile?.role!=="admin");$("#card-label").textContent=profile.card_number+" · "+profile.display_name}
+function showApp(){ $("#auth-view").classList.add("hidden");$("#app-view").classList.remove("hidden");$("#navlinks").classList.remove("hidden");$("#auth-button").textContent="Sign out";$("#auth-button").classList.remove("secondary");$("#admin-add").classList.toggle("hidden",profile?.role!=="admin");$("#card-label").textContent=profile.card_number+" · "+profile.display_name;notificationStatus();const notifyButton=$("#enable-notifications");if(notifyButton)notifyButton.onclick=enableNotifications}
 function modal(html){const root=$("#modal-root");root.innerHTML='<div class="modal"><section class="modal-box">'+html+'</section></div>';root.querySelector(".modal").addEventListener("click",e=>{if(e.target.classList.contains("modal"))root.innerHTML=""});return root.querySelector(".modal-box")}
 function closeModal(){$("#modal-root").innerHTML=""}
 function authForm(mode){const register=mode==="register";const box=modal('<h2>'+(register?'Get your library card':'Welcome back')+'</h2><p class="small">'+(register?'We’ll make a new card number and PIN for you. Save them somewhere safe.':'Enter your card number and 4-digit PIN.')+'</p>'+(register?'<label>Your name</label><input id="auth-name" maxlength="60" placeholder="Name" required>':'<label>Library card number</label><input id="auth-card" inputmode="numeric" maxlength="12" placeholder="12 digits" required><label>PIN</label><input id="auth-pin" inputmode="numeric" maxlength="4" type="password" placeholder="4 digits" required>')+'<p id="auth-error" class="small" aria-live="polite"></p><div class="actions"><button class="ghost" id="auth-cancel">Cancel</button><button id="auth-submit">'+(register?'Create card':'Sign in')+'</button></div>');$("#auth-cancel",box).onclick=closeModal;$("#auth-submit",box).onclick=async()=>{const btn=$("#auth-submit",box),err=$("#auth-error",box);btn.disabled=true;err.textContent="";try{let result;if(register){result=await api("register",{display_name:$("#auth-name",box).value.trim()})}else{result=await api("login",{card_number:$("#auth-card",box).value.trim(),pin:$("#auth-pin",box).value})}saveToken(result.token,result);if(register){closeModal();showCredentials(result);return}closeModal();await enterApp()}catch(e){err.textContent=e.message;btn.disabled=false}}}
@@ -65,28 +65,48 @@ async function openSampleEpub(itemId,title){
   $("#sample-prev").onclick=()=>move(-1);$("#sample-next").onclick=()=>move(1);
  }catch(e){const host=$("#reader-content");if(host)host.textContent=e.message;else toast(e.message,true)}
 }
-let releaseNoticeTimer=null;
-function startReleaseNotifications(){
- if(releaseNoticeTimer)clearInterval(releaseNoticeTimer);
+let notificationTimer=null;
+function notificationStatus(){
+ const button=$("#enable-notifications"),status=$("#notification-status");
+ if(!button||!status)return;
+ if(!("Notification" in window)){button.disabled=true;button.textContent="Not supported";status.textContent="This browser or app does not support browser notifications.";return}
+ const permission=Notification.permission;
+ button.disabled=permission==="granted";
+ button.textContent=permission==="granted"?"Notifications enabled":"Enable notifications";
+ status.textContent=permission==="granted"?"You'll get reminders for books due soon and new releases while BookWriters is checking for updates.":permission==="denied"?"Notifications are blocked by your browser. Change the site permission in browser settings to enable them.":"Allow reminders for upcoming return dates and new book releases.";
+}
+async function enableNotifications(){
+ if(!("Notification" in window)){toast("This browser does not support notifications.",true);notificationStatus();return}
+ try{
+  const permission=await Notification.requestPermission();
+  notificationStatus();
+  if(permission==="granted"){toast("Notifications enabled.");startReleaseNotifications(true)}
+  else toast(permission==="denied"?"Notifications are blocked in browser settings.":"No notification permission was granted.",true);
+ }catch(e){toast("The browser couldn't request notification permission.",true)}
+}
+function showLibraryNotification(n){
+ const options={body:n.message,tag:"bookwriters-"+n.id,renotify:false};
+ if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+  navigator.serviceWorker.ready.then(reg=>reg.showNotification(n.title,options)).catch(()=>{try{new Notification(n.title,options)}catch{}});
+ }else{try{new Notification(n.title,options)}catch{}}
+}
+function startReleaseNotifications(immediate=false){
+ if(notificationTimer)clearInterval(notificationTimer);
  const check=async()=>{
-  if(!token||!profile||!navigator.onLine)return;
+  if(!token||!profile||!navigator.onLine||!("Notification" in window)||Notification.permission!=="granted")return;
   try{
    const data=await api("notifications");
-   const seen=JSON.parse(localStorage.getItem("bw-release-notified")||"[]"),next=[...seen];
-   for(const n of (data.notifications||[]).filter(x=>x.kind==="book-released"&&!x.read_at)){
-    if(!seen.includes(n.id)){
-     if("Notification" in window&&Notification.permission==="granted"){
-      const fallback=()=>new Notification(n.title,{body:n.message,tag:n.id});
-      if(navigator.serviceWorker?.ready)navigator.serviceWorker.ready.then(reg=>reg.showNotification(n.title,{body:n.message,tag:n.id})).catch(fallback);else fallback();
-     }
-     next.push(n.id);
-    }
+   const seen=JSON.parse(localStorage.getItem("bw-notifications-shown")||"[]"),next=[...seen];
+   for(const n of (data.notifications||[]).filter(x=>!x.read_at&&(x.kind==="book-released"||x.kind==="due-date"))){
+    if(!seen.includes(n.id)){showLibraryNotification(n);next.push(n.id)}
    }
-   localStorage.setItem("bw-release-notified",JSON.stringify(next.slice(-100)));
-  }catch(e){console.warn("Release notification check failed",e)}
+   localStorage.setItem("bw-notifications-shown",JSON.stringify(next.slice(-150)));
+  }catch(e){console.warn("Notification check failed",e)}
  };
- check();releaseNoticeTimer=setInterval(check,45000);
+ if(immediate)check();else check();
+ notificationTimer=setInterval(check,45000);
 }
+
 window.bwOpenSample=openSampleEpub;
 async function loadPublicStats(){try{const data=await api("public-stats");$("#public-borrowed-count").textContent=Number(data.books_borrowed||0).toLocaleString()}catch(e){$("#public-borrowed-count").textContent="—"}}
 async function loadDiscover(){const box=$("#catalogue");box.innerHTML='<div class="empty">Loading the shelves…</div>';try{const data=await api("discover");items=data.items||[];const genres=[...new Set(items.map(x=>x.genre).filter(x=>x&&x!=="Uncategorized"))].sort((a,b)=>a.localeCompare(b));const select=$("#genre-filter"),current=select.value;select.innerHTML='<option value="">All genres</option>'+genres.map(g=>'<option value="'+esc(g)+'">'+esc(g)+'</option>').join("");select.value=current;renderDiscover()}catch(e){box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
@@ -158,9 +178,18 @@ function renderAudioView(loan){
 async function openAudio(url,loan){
  currentAudioLoanId=loan.id;
  if(audio){audio.pause();audio=null}
- audio=new Audio(url);audio.preload="metadata";
+ audio=new Audio();audio.preload="metadata";audio.src=url;
+ const host=$("#reader-content");
+ if(host){host.classList.add("audio-stage");host.textContent="Loading audiobook…"}
  const mini=ensureMiniPlayer();$("#mini-cover").src=loan.item.cover_url||"";$("#mini-cover").alt="";$("#mini-title").textContent=loan.item.title;
- audio.addEventListener("loadedmetadata",()=>{audio.currentTime=Math.min(Number(loan.progress?.audio_position_seconds)||0,audio.duration||0);updateAudioUI()});
+ await new Promise((resolve,reject)=>{
+  let settled=false;
+  const finish=(error)=>{if(settled)return;settled=true;clearTimeout(timer);audio.removeEventListener("loadedmetadata",loaded);audio.removeEventListener("error",failed);error?reject(error):resolve()};
+  const loaded=()=>{audio.currentTime=Math.min(Number(loan.progress?.audio_position_seconds)||0,Number.isFinite(audio.duration)?audio.duration:0);finish()};
+  const failed=()=>finish(new Error("This audiobook couldn't load. The audio file may be missing, unsupported, or unavailable."));
+  const timer=setTimeout(()=>finish(new Error("The audiobook took too long to load. Check your connection and try again.")),15000);
+  audio.addEventListener("loadedmetadata",loaded,{once:true});audio.addEventListener("error",failed,{once:true});audio.load();
+ });
  audio.addEventListener("timeupdate",updateAudioUI);
  audio.addEventListener("play",()=>{updateAudioUI();if(progressTimer)clearInterval(progressTimer);progressTimer=setInterval(()=>{if(audio&&!audio.paused)saveAudioProgress()},10000)});
  audio.addEventListener("pause",()=>{updateAudioUI();saveAudioProgress();if(progressTimer){clearInterval(progressTimer);progressTimer=null}});
