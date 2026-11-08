@@ -124,8 +124,8 @@ async function openLoan(loanId){
  panel.classList.add("reader-open");
  if(loan.item.media_type==="audiobook"&&audio&&currentAudioLoanId===loan.id){renderAudioView(loan);return}
  try{
-  let offlineUrl=null;try{offlineUrl=window.bwOffline?await window.bwOffline.getUrl(loan.item.id):null}catch(offlineError){console.warn("Offline cache unavailable",offlineError)}
-  let media;if(offlineUrl){media={url:offlineUrl}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}
+  let offlineUrl=null;if(window.bwOffline){try{offlineUrl=await Promise.race([window.bwOffline.getUrl(loan.item.id),new Promise(resolve=>setTimeout(()=>resolve(null),1500))])}catch(offlineError){console.warn("Offline cache unavailable; opening from library server instead.",offlineError)}}
+  let media;if(offlineUrl){media={url:offlineUrl}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{const host=$("#reader-content");if(host)host.textContent="Connecting to your book…";media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}
   if(loan.item.media_type==="audiobook")await openAudio(media.url,loan);else await openEpub(media.url,loan);
  }catch(e){const host=$("#reader-content");if(host)host.textContent=e.message}
 }
