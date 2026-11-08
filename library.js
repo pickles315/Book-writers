@@ -26,9 +26,9 @@ async function enterApp(){const cachedCard=localStorage.getItem("bw-library-acti
 function startBooksTransition(){
  const started=Date.now();
  const layer=document.createElement("div");
- layer.className="bw-book-rain bw-book-rain-loading";
+ layer.className="bw-book-rain bw-book-rain-entering bw-book-rain-loading";
  layer.setAttribute("aria-hidden","true");
- layer.style.cssText="position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;display:block!important;overflow:hidden!important;pointer-events:none!important;z-index:2147483647!important;opacity:1!important;background:#315c45!important;";
+ layer.style.cssText="position:fixed!important;top:0!important;left:0!important;right:0!important;width:100vw!important;height:0!important;display:block!important;overflow:hidden!important;pointer-events:none!important;z-index:2147483647!important;opacity:1!important;background:var(--paper)!important;";
  for(let i=0;i<11;i++){
   const book=document.createElement("span");
   book.className="bw-falling-book";
@@ -44,12 +44,12 @@ function startBooksTransition(){
  return ()=>{
   if(finished)return;
   finished=true;
-  const fade=()=>{
-   layer.classList.remove("bw-book-rain-loading");
+  const close=()=>{
+   layer.classList.remove("bw-book-rain-loading","bw-book-rain-entering");
    layer.classList.add("bw-book-rain-finishing");
-   setTimeout(()=>layer.remove(),700);
+   setTimeout(()=>layer.remove(),520);
   };
-  setTimeout(fade,Math.max(0,1000-(Date.now()-started)));
+  setTimeout(close,Math.max(0,1000-(Date.now()-started)));
  };
 }
 function playBooksTransition(){const finish=startBooksTransition();setTimeout(finish,1150)}
