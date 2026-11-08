@@ -10,15 +10,22 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
 <script>
 window.epubJsReady=new Promise((resolve,reject)=>{
- const sources=["https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js","https://unpkg.com/epubjs@0.3.93/dist/epub.min.js"];
- let index=0;
- const load=()=>{
-  if(index>=sources.length){reject(new Error("The EPUB reader library could not be loaded. Check your internet connection and refresh."));return}
-  const script=document.createElement("script");script.src=sources[index++];script.onload=()=>typeof window.ePub==="function"?resolve():load();script.onerror=load;document.head.appendChild(script);
- };
- load();
+ const loadScript=(urls,check,label)=>new Promise((done,fail)=>{
+  let index=0;
+  const next=()=>{
+   if(index>=urls.length){fail(new Error(label+" could not be loaded."));return}
+   const script=document.createElement("script");script.src=urls[index++];
+   script.onload=()=>check()?done():next();script.onerror=next;document.head.appendChild(script);
+  };next();
+ });
+ (async()=>{
+  try{
+   await loadScript(["https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js","https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"],()=>typeof window.JSZip==="function","JSZip");
+   await loadScript(["https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js","https://unpkg.com/epubjs@0.3.93/dist/epub.min.js"],()=>typeof window.ePub==="function","epub.js");
+   resolve();
+  }catch(error){reject(error)}
+ })();
 });
-</script>
 <style>
 :root{color-scheme:light;--ink:#202820;--muted:#70796f;--paper:#f5f5ed;--card:#fffefa;--line:#e1e4d9;--green:#315c45;--green-soft:#e5eee5;--gold:#e8c477;--red:#a33c35;--shadow:0 14px 40px #263d2510}
 :root[data-theme="dark"]{color-scheme:dark;--ink:#e8eee5;--muted:#a3afa1;--paper:#151d18;--card:#202b23;--line:#344237;--green:#a3c9a7;--green-soft:#293b2d;--gold:#d9bb78;--red:#ff9a8f;--shadow:0 14px 40px #0003}
@@ -203,7 +210,7 @@ body:has(.audio-mini-player.visible){padding-bottom:76px}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-18"></script>
+<script src="./library.js?v=library-19"></script>
 <script src="./book-details.js?v=book-details-5"></script>
 <script src="./requests.js?v=2"></script>
 <script src="./features.js?v=3"></script>
