@@ -63,7 +63,7 @@ function itemCard(x,loan=false){
  if(loan)actions='<div class="small">Due '+new Date(x.due_at).toLocaleDateString()+'</div><div class="foot"><button data-open-loan="'+esc(x.id)+'">Open</button><button class="secondary" data-offline-save="'+esc(x.id)+'" data-offline-item="'+esc(itemId)+'">Save offline</button><button class="secondary" data-return="'+esc(x.id)+'">Return</button></div>';
  else if(x.released===false)actions='<div class="small">Not released yet</div><div class="foot"><button class="secondary" data-release-alert="'+esc(itemId)+'">🔔 Notify me</button>'+(x.preview_file_path?'<button data-preview-item="'+esc(itemId)+'">Read sample</button>':'')+'</div>';
  else actions='<div class="foot"><span class="small">'+x.available_copies+' available</span><button data-borrow="'+esc(itemId)+'" '+(x.available_copies<1?'disabled':'')+'>Borrow</button>'+(x.preview_file_path?'<button class="secondary" data-preview-item="'+esc(itemId)+'">Read sample</button>':'')+'</div>';
- return '<article class="item"><img class="cover '+(x.media_type==="audiobook"?"audio":"")+'" data-offline-cover="'+esc(itemId)+'" src="'+esc(cover)+'" alt="Cover for '+esc(x.title)+'" loading="lazy">'+details+actions+'</article>';
+ return '<article class="item"><img class="cover '+(x.media_type==="audiobook"?"audio":"")+'" data-offline-cover="'+esc(itemId)+'" data-cover-src="'+esc(cover)+'" src="'+esc(cover)+'" alt="Cover for '+esc(x.title)+'" loading="lazy">'+details+actions+'</article>';
 }
 async function setReleaseAlert(itemId,button){
  const off=button.dataset.subscribed==="true";
@@ -159,7 +159,7 @@ async function openLoan(loanId){
   let offlineUrl=null;if(window.bwOffline){try{offlineUrl=await Promise.race([window.bwOffline.getUrl(loan.item.id),new Promise(resolve=>setTimeout(()=>resolve(null),1500))])}catch(offlineError){console.warn("Offline cache unavailable; opening from library server instead.",offlineError)}}
   let media;if(offlineUrl){media={url:offlineUrl}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{const host=$("#reader-content");if(host)host.textContent="Connecting to your book…";media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}
   if(loan.item.media_type==="audiobook")await openAudio(media.url,loan);else await openEpub(media.url,loan);
- }catch(e){const host=$("#reader-content");if(host)host.textContent=e.message}
+ }catch(e){const host=$("#reader-content");if(host){host.innerHTML='<div class="reader-message"><div class="reader-message-icon">⌁</div><h2>Couldn’t open this title</h2><p>'+esc(e.message||"Something went wrong while opening this title.")+'</p><div class="reader-message-actions"><button id="reader-retry">Try again</button><button class="secondary" id="reader-error-back">Back to loans</button></div></div>';$("#reader-retry").onclick=()=>openLoan(loanId);$("#reader-error-back").onclick=closeReader}}
  finally{finishTransition()}
 }
 function closeReader(){
