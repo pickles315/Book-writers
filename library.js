@@ -24,10 +24,33 @@ function authForm(mode){const register=mode==="register";const box=modal('<h2>'+
 function showCredentials(result){const box=modal('<h2>Your library card is ready</h2><p class="small">These details are shown only once. Save both before closing this window.</p><label>Card number</label><div class="credential">'+esc(result.card_number)+'</div><label>PIN</label><div class="credential">'+esc(result.pin)+'</div><div class="actions"><button id="copy-credentials" class="secondary">Copy both</button><button id="credentials-done">Continue</button></div>');$("#copy-credentials",box).onclick=()=>{navigator.clipboard?.writeText("Card: "+result.card_number+"\nPIN: "+result.pin);toast("Credentials copied.")};$("#credentials-done",box).onclick=async()=>{closeModal();await enterApp()}}
 async function enterApp(){const cachedCard=localStorage.getItem("bw-library-active-card")||savedAccounts()[0]?.card_number||null;try{profile=await api("me");offlineMode=false;rememberAccount(token,profile);await window.bwOffline?.saveProfile(profile);showApp();startReleaseNotifications();await Promise.all([loadDiscover(),api("loans").then(data=>window.bwOffline?.saveLoans(profile.card_number,data.loans||[])).catch(()=>{})]);}catch(e){let cached=null;try{cached=cachedCard?await window.bwOffline?.getProfile(cachedCard):null}catch{}if(cached){profile=cached;offlineMode=true;showApp();toast("Offline mode — showing books saved on this device.");setPage("loans")}else{showAuth();toast(navigator.onLine?e.message:"Connect once to load your library on this device.",true)}}}
 function startBooksTransition(){
- const layer=document.createElement("div");layer.className="bw-book-rain bw-book-rain-loading";layer.setAttribute("aria-hidden","true");layer.style.zIndex="2147483647";layer.style.backgroundColor=getComputedStyle(document.documentElement).getPropertyValue("--green").trim()||"#315c45";
- for(let i=0;i<11;i++){const book=document.createElement("span");book.className="bw-falling-book";book.style.left=(5+i*8.8)+"%";book.style.setProperty("--delay",(i%4)*0.28+"s");book.style.setProperty("--spin",(i%2?1:-1)*(75+(i%4)*32)+"deg");book.style.setProperty("--fall-time",(2.1+(i%4)*0.25)+"s");book.innerHTML="<i></i>";layer.appendChild(book)}
- document.body.appendChild(layer);let finished=false;
- return ()=>{if(finished)return;finished=true;layer.classList.add("bw-book-rain-finishing");setTimeout(()=>layer.remove(),700)};
+ const started=Date.now();
+ const layer=document.createElement("div");
+ layer.className="bw-book-rain bw-book-rain-loading";
+ layer.setAttribute("aria-hidden","true");
+ layer.style.cssText="position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;display:block!important;overflow:hidden!important;pointer-events:none!important;z-index:2147483647!important;opacity:1!important;background:#315c45!important;";
+ for(let i=0;i<11;i++){
+  const book=document.createElement("span");
+  book.className="bw-falling-book";
+  book.style.left=(5+i*8.8)+"%";
+  book.style.setProperty("--delay",(i%4)*0.28+"s");
+  book.style.setProperty("--spin",(i%2?1:-1)*(75+(i%4)*32)+"deg");
+  book.style.setProperty("--fall-time",(2.1+(i%4)*0.25)+"s");
+  book.innerHTML="<i></i>";
+  layer.appendChild(book);
+ }
+ (document.body||document.documentElement).appendChild(layer);
+ let finished=false;
+ return ()=>{
+  if(finished)return;
+  finished=true;
+  const fade=()=>{
+   layer.classList.remove("bw-book-rain-loading");
+   layer.classList.add("bw-book-rain-finishing");
+   setTimeout(()=>layer.remove(),700);
+  };
+  setTimeout(fade,Math.max(0,1000-(Date.now()-started)));
+ };
 }
 function playBooksTransition(){const finish=startBooksTransition();setTimeout(finish,1150)}
 function setPage(name){["discover","loans","settings"].forEach(p=>$("#page-"+p).classList.toggle("hidden",p!==name));$("#page-book-detail")?.classList.add("hidden");$$("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));if(name==="discover")loadDiscover();if(name==="loans"){const finishTransition=startBooksTransition();loadLoans().finally(finishTransition)}window.scrollTo({top:0,behavior:"smooth"})}
