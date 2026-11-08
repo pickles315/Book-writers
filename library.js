@@ -30,7 +30,7 @@ function startBooksTransition(){
  return ()=>{if(finished)return;finished=true;layer.classList.add("bw-book-rain-finishing");setTimeout(()=>layer.remove(),700)};
 }
 function playBooksTransition(){const finish=startBooksTransition();setTimeout(finish,1150)}
-function setPage(name){["discover","loans","settings"].forEach(p=>$("#page-"+p).classList.toggle("hidden",p!==name));$("#page-book-detail")?.classList.add("hidden");$$("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));if(name==="discover")loadDiscover();if(name==="loans"){playBooksTransition();loadLoans()}window.scrollTo({top:0,behavior:"smooth"})}
+function setPage(name){["discover","loans","settings"].forEach(p=>$("#page-"+p).classList.toggle("hidden",p!==name));$("#page-book-detail")?.classList.add("hidden");$$("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));if(name==="discover")loadDiscover();if(name==="loans"){const finishTransition=startBooksTransition();loadLoans().finally(finishTransition)}window.scrollTo({top:0,behavior:"smooth"})}
 function formatType(v){return v==="graphic_novel"?"Graphic novel":v==="audiobook"?"Audiobook":"Book"}
 function itemCard(x,loan=false){
  const cover=x.cover_url||"",itemId=x.item_id||x.id;
