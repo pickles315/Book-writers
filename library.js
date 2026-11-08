@@ -28,7 +28,7 @@ function startBooksTransition(){
  const layer=document.createElement("div");
  layer.className="bw-book-rain bw-book-rain-entering bw-book-rain-loading";
  layer.setAttribute("aria-hidden","true");
- layer.style.cssText="position:fixed!important;top:0!important;left:0!important;right:0!important;width:100vw!important;height:0!important;display:block!important;overflow:hidden!important;pointer-events:none!important;z-index:2147483647!important;opacity:1!important;background:var(--paper)!important;";
+ layer.style.cssText="position:fixed!important;top:0!important;left:0!important;right:0!important;width:100vw!important;height:0px;display:block!important;overflow:hidden!important;pointer-events:none!important;z-index:2147483647!important;opacity:1!important;background:var(--paper)!important;";
  for(let i=0;i<11;i++){
   const book=document.createElement("span");
   book.className="bw-falling-book";
