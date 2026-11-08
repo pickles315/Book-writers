@@ -1,6 +1,6 @@
-const CACHE_NAME="bookwriters-shell-v24";
+const CACHE_NAME="bookwriters-shell-v25";
 const LOCAL_FILES=["./","./index.html","./library.js?v=library-19","./book-details.js?v=book-details-5","./requests.js?v=2","./features.js?v=3","./offline.js?v=3","./extras.js?v=3"];
-const CDN_FILES=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0","https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"];
+const CDN_FILES=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0","https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js","https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"];
 
 self.addEventListener("install",event=>{
  event.waitUntil((async()=>{
@@ -29,7 +29,7 @@ self.addEventListener("fetch",event=>{
  if(request.method!=="GET")return;
  const url=new URL(request.url);
  const local=url.origin===self.location.origin;
- const cdn=url.hostname==="cdn.jsdelivr.net";
+ const cdn=url.hostname==="cdn.jsdelivr.net"||url.hostname==="unpkg.com";
  if(!local&&!cdn)return;
 
  event.respondWith((async()=>{
