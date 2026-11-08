@@ -20,7 +20,7 @@ window.epubJsReady=new Promise((resolve,reject)=>{
  });
  (async()=>{
   try{
-   await loadScript(["https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js","https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"],()=>typeof window.JSZip==="function","JSZip");
+   await loadScript(["https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js","https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js","https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"],()=>typeof window.JSZip==="function","JSZip");
    await loadScript(["https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js","https://unpkg.com/epubjs@0.3.93/dist/epub.min.js"],()=>typeof window.ePub==="function","epub.js");
    resolve();
   }catch(error){reject(error)}
@@ -211,7 +211,7 @@ body:has(.audio-mini-player.visible){padding-bottom:76px}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-20"></script>
+<script src="./library.js?v=library-21"></script>
 <script src="./book-details.js?v=book-details-5"></script>
 <script src="./requests.js?v=2"></script>
 <script src="./features.js?v=3"></script>
