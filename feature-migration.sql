@@ -1,4 +1,4 @@
--- BookWriters feature migration.
+-- BookReaders feature migration.
 -- Safe to re-run: creates/adds only feature schema and replaces policies below.
 -- Review this file, then run it in the Supabase SQL Editor before enabling social/version features.
 
