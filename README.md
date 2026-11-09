@@ -4,7 +4,7 @@ BookReaders is a web-based borrowing library with an Android app wrapper. Reader
 
 **https://pickles315.github.io/Book-writers/**
 
-The Android APK is not a separate copy of the website. It is a small native Android application that opens this same live website inside an Android WebView. This keeps the website as the single source of truth for screens and most features.
+The Android APK is not a separate copy of the website. It is a small native Android application that opens this same live website inside an Android WebView. This keeps the website as the single source of truth for screens and most features. The launcher name and icon are branded BookReaders. The existing Android application ID is intentionally kept stable so this renamed APK can update an existing installation instead of creating a second app.
 
 ## Contents
 
