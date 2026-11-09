@@ -1,6 +1,6 @@
 # BookReaders for Android
 
-This Android app is a native WebView shell around the existing BookReaders website. It intentionally loads the live site instead of duplicating its screens, so the website remains the source of truth for the interface and library features.
+This Android app is a native WebView shell around the existing BookReaders website. It intentionally loads the live site instead of duplicating its screens, so the website remains the source of truth for the interface and library features. The launcher name and icon use BookReaders branding. The existing Android application ID stays stable so this renamed build can update the current installation.
 
 ## Shared data
 
