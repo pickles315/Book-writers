@@ -680,6 +680,51 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       return json({ ok: true });
     }
+    if (action === "reader-avatar-upload") {
+      const encoded = String(body.image_base64 || "");
+      const mime = String(body.mime_type || "").toLowerCase();
+      if (!["image/jpeg","image/png","image/webp"].includes(mime)) return fail("Use a JPG, PNG, or WebP image.");
+      if (!encoded || encoded.length > 7_000_000) return fail("Image must be 5 MB or smaller.");
+      const raw = encoded.replace(/^data:image\/(?:jpeg|png|webp);base64,/, "");
+      const bytes = Uint8Array.from(atob(raw), (ch) => ch.charCodeAt(0));
+      if (!bytes.length || bytes.length > 5 * 1024 * 1024) return fail("Image must be 5 MB or smaller.");
+      const ext = mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : "webp";
+      const path = card.id + "/" + crypto.randomUUID() + "." + ext;
+      const { error: uploadError } = await db.storage.from("reader-avatars").upload(path, bytes, { contentType: mime, upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: old } = await db.from("library_reader_profiles").select("avatar_path").eq("card_id", card.id).maybeSingle();
+      const { error } = await db.from("library_reader_profiles").upsert({ card_id: card.id, avatar_path: path, avatar_status: "pending", updated_at: new Date().toISOString() }, { onConflict: "card_id" });
+      if (error) throw error;
+      if (old?.avatar_path) await db.storage.from("reader-avatars").remove([old.avatar_path]);
+      return json({ ok: true, status: "pending" }, 202);
+    }
+    if (action === "admin-avatar-queue") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const { data, error } = await db.from("library_reader_profiles").select("card_id,avatar_path,updated_at").eq("avatar_status", "pending").not("avatar_path", "is", null).order("updated_at", { ascending: true }).limit(50);
+      if (error) throw error;
+      const ids = (data || []).map((x: any) => x.card_id);
+      const { data: cards, error: cardError } = ids.length ? await db.from("library_cards").select("id,display_name").in("id", ids) : { data: [], error: null };
+      if (cardError) throw cardError;
+      const names = new Map((cards || []).map((x: any) => [x.id, x.display_name]));
+      return json({ avatars: await Promise.all((data || []).map(async (x: any) => ({ card_id: x.card_id, display_name: names.get(x.card_id) || "Reader", image_url: (await db.storage.from("reader-avatars").createSignedUrl(x.avatar_path, 600)).data?.signedUrl || null, updated_at: x.updated_at }))) });
+    }
+    if (action === "admin-avatar-review") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const cardId = String(body.card_id || ""), decision = String(body.decision || "");
+      if (!cardId || !["approve","reject"].includes(decision)) return fail("Choose approve or reject.");
+      const { data: profile, error: readError } = await db.from("library_reader_profiles").select("avatar_path,avatar_status").eq("card_id", cardId).maybeSingle();
+      if (readError) throw readError;
+      if (!profile || profile.avatar_status !== "pending" || !profile.avatar_path) return fail("That avatar is no longer waiting for review.", 409);
+      if (decision === "approve") {
+        const { error } = await db.from("library_reader_profiles").update({ avatar_status: "approved", updated_at: new Date().toISOString() }).eq("card_id", cardId);
+        if (error) throw error;
+      } else {
+        await db.storage.from("reader-avatars").remove([profile.avatar_path]);
+        const { error } = await db.from("library_reader_profiles").update({ avatar_path: null, avatar_status: "rejected", updated_at: new Date().toISOString() }).eq("card_id", cardId);
+        if (error) throw error;
+      }
+      return json({ ok: true });
+    }
     if (action === "reader-profile") {
       if (body.display_name !== undefined) {
         const displayName = String(body.display_name || "").trim();
@@ -694,10 +739,11 @@ Deno.serve(async (req: Request) => {
         if (error) throw error;
       }
       const [{ data: profile }, { data: cardData }] = await Promise.all([
-        db.from("library_reader_profiles").select("bio,favorite_genre").eq("card_id", card.id).maybeSingle(),
+        db.from("library_reader_profiles").select("bio,favorite_genre,avatar_path,avatar_status,profile_theme").eq("card_id", card.id).maybeSingle(),
         db.from("library_cards").select("display_name,card_number,created_at").eq("id", card.id).single()
       ]);
-      return json({ profile: { display_name: cardData.display_name, card_suffix: String(cardData.card_number).slice(-4), member_since: cardData.created_at, bio: profile?.bio || "", favorite_genre: profile?.favorite_genre || "" } });
+      const avatarUrl = profile?.avatar_status === "approved" && profile?.avatar_path ? (await db.storage.from("reader-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl || null : null;
+      return json({ profile: { display_name: cardData.display_name, card_suffix: String(cardData.card_number).slice(-4), member_since: cardData.created_at, bio: profile?.bio || "", favorite_genre: profile?.favorite_genre || "", avatar_url: avatarUrl, avatar_status: profile?.avatar_status || "none", profile_theme: profile?.profile_theme || "default" } });
     }
     if (action === "announcements") {
       const { data, error } = await db.from("library_announcements").select("id,title,message,created_at").eq("is_published", true).order("created_at", { ascending: false }).limit(12);
