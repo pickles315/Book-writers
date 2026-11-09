@@ -181,6 +181,49 @@ body:has(.audio-mini-player.visible){padding-bottom:76px}
 @media(max-width:650px){.reader-fullscreen{padding:10px}.reader-fullscreen .reader-topbar{margin-bottom:6px}.audio-mini-player{left:7px;right:7px;gap:6px;padding:7px}.audio-mini-player button{width:33px;height:33px}.audio-mini-player .mini-open{width:38px;height:38px}}
 .state-panel{max-width:520px;margin:28px auto;padding:30px 22px;text-align:center;border:1px solid var(--line);border-radius:22px;background:var(--card);color:var(--ink);box-shadow:var(--shadow)}.state-panel h3{font:700 1.5rem Georgia,serif;margin:8px 0}.state-panel p{color:var(--muted);line-height:1.6}.state-icon{width:54px;height:54px;margin:0 auto 12px;border-radius:18px;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-size:1.8rem}.cover-unavailable .cover{display:none}.cover-unavailable{background:var(--green-soft)}
 .reader-message{max-width:520px;margin:18px auto;padding:24px 18px;text-align:center;border:1px solid var(--line);border-radius:20px;background:var(--card);color:var(--ink);box-shadow:var(--shadow)}.reader-message h2{font:700 1.4rem Georgia,serif;margin:8px 0}.reader-message p{color:var(--muted);line-height:1.6}.reader-message-icon{width:48px;height:48px;margin:0 auto 10px;border-radius:16px;display:grid;place-items:center;background:var(--green-soft);color:var(--green);font-size:1.7rem}.reader-message-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:16px}
+
+/* Final interface polish */
+:root{scroll-behavior:smooth}
+button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+button{transition:background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease,filter .18s ease}
+button:active:not(:disabled){transform:scale(.975)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid color-mix(in srgb,var(--green) 55%,transparent);outline-offset:3px}
+input,select,textarea{transition:border-color .18s ease,box-shadow .18s ease}
+input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 13%,transparent)}
+.item{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.item:active{transform:scale(.99)}
+.item .cover{transition:filter .2s ease}
+.navlinks button{transition:background-color .18s ease,color .18s ease}
+.navlinks button.active{box-shadow:inset 0 -2px 0 var(--green)}
+.welcome{position:relative;background:linear-gradient(118deg,var(--green),color-mix(in srgb,var(--green) 72%,#172c20));box-shadow:0 16px 38px color-mix(in srgb,var(--green) 17%,transparent)}
+.welcome:after{content:"";position:absolute;inset:auto -8% -68% 42%;height:115%;border:1px solid #ffffff18;border-radius:50%;pointer-events:none}
+.welcome-art{position:relative;z-index:1;text-shadow:0 12px 30px #0002;user-select:none}
+.section-head h2{letter-spacing:-.035em}
+.tag{letter-spacing:.015em}
+.panel,.modal-box,.reader,.audio-player{transition:border-color .2s ease,box-shadow .2s ease}
+.modal{backdrop-filter:blur(5px);animation:bw-modal-fade .18s ease both}
+.modal-box{animation:bw-modal-rise .22s cubic-bezier(.2,.75,.25,1) both}
+.notice{animation:bw-toast-in .22s cubic-bezier(.2,.75,.25,1) both}
+.state-panel,.reader-message{animation:bw-state-in .25s ease both}
+@keyframes bw-modal-fade{from{opacity:0}to{opacity:1}}
+@keyframes bw-modal-rise{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes bw-toast-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bw-state-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(hover:hover) and (pointer:fine){
+ .item:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--green) 42%,var(--line));box-shadow:0 18px 42px color-mix(in srgb,var(--ink) 10%,transparent)}
+ .item:hover .cover{filter:saturate(1.04)}
+ button:hover:not(:disabled){transform:translateY(-1px)}
+ .navlinks button:hover{background:var(--green-soft);color:var(--green)}
+}
+@media(max-width:650px){
+ .welcome{box-shadow:0 10px 24px color-mix(in srgb,var(--green) 13%,transparent)}
+ .item:active{transform:scale(.985)}
+}
+@media(prefers-reduced-motion:reduce){
+ :root{scroll-behavior:auto}
+ *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
+
 </style>
 </head>
 <body>
