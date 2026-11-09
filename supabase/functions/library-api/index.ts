@@ -515,12 +515,6 @@ Deno.serve(async (req: Request) => {
       return json({ reviews, average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
     }
 
-      const itemId = String(body.item_id || "");
-      const { data, error } = await db.from("library_reviews").select("id,card_id,rating,review,created_at,updated_at").eq("item_id", itemId).order("created_at", { ascending: false });
-      if (error) throw error;
-      const rows = data || [];
-      return json({ reviews: rows.map((x: any) => ({ ...x, is_mine: x.card_id === card.id, card_id: undefined })), average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
-    }
     if (action === "review-save") {
       const itemId = String(body.item_id || "");
       const rating = Number(body.rating);
