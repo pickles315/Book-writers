@@ -760,9 +760,9 @@ Deno.serve(async (req: Request) => {
         if (error) throw error;
       }
       if (body.bio !== undefined || body.favorite_genre !== undefined || body.is_public !== undefined || body.anonymous_reviews !== undefined) {
-        const bio = String(body.bio || "").trim(), favoriteGenre = String(body.favorite_genre || "").trim();
-        if (bio.length > 240 || favoriteGenre.length > 60) return fail("Profile text is too long.");
-        const profileUpdate: any = { card_id: card.id, bio, favorite_genre: favoriteGenre, updated_at: new Date().toISOString() };
+        const profileUpdate: any = { card_id: card.id, updated_at: new Date().toISOString() };
+        if (body.bio !== undefined) { const bio = String(body.bio || "").trim(); if (bio.length > 240) return fail("Profile description must be 240 characters or fewer."); profileUpdate.bio = bio; }
+        if (body.favorite_genre !== undefined) { const favoriteGenre = String(body.favorite_genre || "").trim(); if (favoriteGenre.length > 60) return fail("Favorite genre must be 60 characters or fewer."); profileUpdate.favorite_genre = favoriteGenre; }
         if (body.is_public !== undefined) profileUpdate.is_public = body.is_public === true;
         if (body.anonymous_reviews !== undefined) profileUpdate.anonymous_reviews = body.anonymous_reviews === true;
         const { error } = await db.from("library_reader_profiles").upsert(profileUpdate, { onConflict: "card_id" });
