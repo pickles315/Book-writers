@@ -120,7 +120,7 @@ async function loadReviews(id){
  try{
   const data=await api("reviews",{item_id:id});
   $("#bw-review-summary").textContent=data.count?data.average.toFixed(1)+" / 5 · "+data.count+" review"+(data.count===1?"":"s"):"No reviews yet.";
-  $("#bw-review-list").innerHTML=(data.reviews||[]).map(x=>'<div class="bw-review"><strong>'+x.rating+'/5</strong> '+(x.is_mine?'<span class="tag">Your review</span>':'')+'<p style="white-space:pre-wrap">'+esc(x.review||"No written review.")+'</p></div>').join("");
+  $("#bw-review-list").innerHTML=(data.reviews||[]).map(x=>'<div class="bw-review"><strong>'+x.rating+'/5</strong> '+(x.is_mine?'<span class="tag">Your review</span>':'')+'<p style="white-space:pre-wrap">'+esc(x.review||"No written review.")+'</p>'+(x.is_mine?'<button class="danger" data-review-delete="'+esc(id)+'">Delete my review</button>':'')+'</div>').join("");
   const mine=(data.reviews||[]).find(x=>x.is_mine);if(mine){$("#bw-review-rating").value=mine.rating;$("#bw-review-text").value=mine.review||""}
  }catch(e){$("#bw-review-summary").textContent=e.message}
 }
