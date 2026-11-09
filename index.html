@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#315c45">
 <script>(()=>{try{const allowed=["light","dark","forest","ember","citrus","ocean","lavender","rose","sakura","slate","coffee","paper","sunset","mint"];const saved=localStorage.getItem("bw-library-theme");document.documentElement.dataset.theme=allowed.includes(saved)?saved:"light"}catch{document.documentElement.dataset.theme="light"}})();</script>
-<title>BookWriters Library</title>
+<title>BookReaders Library</title>
 <meta name="description" content="Discover books, graphic novels, and audiobooks in your library.">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0"></script>
 <script>
@@ -233,7 +233,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0
  *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
 
-/* BookWriters polish pass: page motion, catalogue rhythm, and touch feedback */
+/* BookReaders polish pass: page motion, catalogue rhythm, and touch feedback */
 #page-discover:not(.hidden),#page-loans:not(.hidden),#page-settings:not(.hidden){
  animation:bw-page-arrive .24s cubic-bezier(.2,.7,.25,1) both;
 }
@@ -294,7 +294,7 @@ button:disabled{filter:saturate(.65)}
 </head>
 <body>
 <header><nav class="nav">
-  <div class="brand"><span class="brand-mark">B</span> BookWriters</div>
+  <div class="brand"><span class="brand-mark">B</span> BookReaders</div>
   <div class="navlinks hidden" id="navlinks">
     <button class="active" data-page="discover">Discover</button>
     <button data-page="loans">Loans</button>
@@ -306,7 +306,7 @@ button:disabled{filter:saturate(.65)}
 <main class="wrap">
   <section id="auth-view" class="panel" style="margin:7vh auto;max-width:480px">
     <p class="small" style="letter-spacing:.14em;text-transform:uppercase;font-weight:800">Your library, anywhere</p>
-    <h1 style="font:700 2.4rem Georgia,serif;margin:8px 0">Welcome to BookWriters</h1>
+    <h1 style="font:700 2.4rem Georgia,serif;margin:8px 0">Welcome to BookReaders</h1>
     <p class="small">Sign in with your library card, or create a free card to start borrowing.</p>
     <button id="show-login" style="width:100%;margin-top:18px">Sign in with library card</button>
     <button id="show-register" class="secondary" style="width:100%;margin-top:9px">Get a library card</button>
@@ -323,11 +323,11 @@ button:disabled{filter:saturate(.65)}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-48"></script>
+<script src="./library.js?v=library-49"></script>
 <script src="./book-details.js?v=book-details-8"></script>
 <script src="./requests.js?v=3"></script>
 <script src="./features.js?v=9"></script>
 <script src="./offline.js?v=5"></script>
-<script src="./extras.js?v=10"></script>
+<script src="./extras.js?v=11"></script>
 </body>
 </html>
