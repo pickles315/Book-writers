@@ -88,6 +88,7 @@ document.addEventListener("click",async e=>{
  const bookmark=e.target.closest("[data-bookmark-delete]");if(bookmark){try{await api("bookmark-delete",{id:bookmark.dataset.bookmarkDelete});await loadShelf()}catch(err){toast(err.message,true)}return}
  const note=e.target.closest("[data-note-delete]");if(note){try{await api("note-delete",{id:note.dataset.noteDelete});await loadShelf()}catch(err){toast(err.message,true)}return}
  const reviewDelete=e.target.closest("[data-review-delete]");if(reviewDelete){if(!confirm("Delete your review for this title?"))return;try{await api("review-delete",{item_id:reviewDelete.dataset.reviewDelete});toast("Review deleted.");const current=window.bwCurrentDetailId;if(current)await loadReviews(current)}catch(err){toast(err.message,true)}return}
+ const adminReviewDelete=e.target.closest("[data-admin-review-delete]");if(adminReviewDelete){if(!confirm("Permanently delete this review?"))return;try{await api("admin-review-delete",{review_id:adminReviewDelete.dataset.adminReviewDelete});toast("Review deleted.");const current=window.bwCurrentDetailId;if(current)await loadReviews(current)}catch(err){toast(err.message,true)}return}
   const inventorySave=e.target.closest("[data-inventory-save]");if(inventorySave){const id=inventorySave.dataset.inventorySave,value=Number(document.querySelector('[data-inventory-copies="'+id+'"]').value);inventorySave.disabled=true;try{await api("admin-update-copies",{item_id:id,total_copies:value});toast("Copy count updated.");await loadAdmin()}catch(err){toast(err.message,true);inventorySave.disabled=false}return}
   const restore=e.target.closest("[data-restore-expired]");if(restore){const id=restore.dataset.restoreExpired,days=$('[data-restore-days="'+id+'"]').value;restore.disabled=true;try{await api("admin-restore-loan",{loan_id:id,days:Number(days)});toast("Loan restored with a new due date.");await loadAdmin()}catch(err){toast(err.message,true);restore.disabled=false}return}
  const extend=e.target.closest("[data-extend-loan]");if(extend){const id=extend.dataset.extendLoan,days=$('[data-extend-days="'+id+'"]').value;extend.disabled=true;try{await api("admin-extend-loan",{loan_id:id,days:Number(days)});toast("Due date extended.");await loadAdmin()}catch(err){toast(err.message,true);extend.disabled=false}return}
@@ -122,15 +123,16 @@ function enhanceDetails(){
 }
 async function loadReviews(id){
  try{
-  const data=await api("reviews",{item_id:id});
+  const [data,me]=await Promise.all([api("reviews",{item_id:id}),api("me")]);
   $("#bw-review-summary").textContent=data.count?data.average.toFixed(1)+" / 5 · "+data.count+" review"+(data.count===1?"":"s"):"No reviews yet.";
-  $("#bw-review-list").innerHTML=(data.reviews||[]).map(x=>'<div class="bw-review"><strong>'+x.rating+'/5</strong> '+(x.is_mine?'<span class="tag">Your review</span>':'')+'<p style="white-space:pre-wrap">'+esc(x.review||"No written review.")+'</p>'+(x.profile_id?'<button class="ghost" data-public-profile="'+esc(x.profile_id)+'">View reader profile</button>':'<span class="small">'+esc(x.author_name||"Reader")+(x.author_name==="Anonymous reader"?"":"") +'</span>')+(x.is_mine?'<button class="danger" data-review-delete="'+esc(id)+'">Delete my review</button>':'')+'</div>').join("");
+  const isAdmin=me.role==="admin";
+  $("#bw-review-list").innerHTML=(data.reviews||[]).map(x=>'<div class="bw-review"><strong>'+x.rating+'/5</strong> '+(x.is_mine?'<span class="tag">Your review</span>':'')+'<p style="white-space:pre-wrap">'+esc(x.review||"No written review.")+'</p>'+(x.profile_id?'<button class="ghost" data-public-profile="'+esc(x.profile_id)+'">View reader profile</button>':'<span class="small">'+esc(x.author_name||"Reader")+'</span>')+(x.is_mine?'<button class="danger" data-review-delete="'+esc(id)+'">Delete my review</button>':'')+(isAdmin?'<button class="danger" data-admin-review-delete="'+esc(x.id)+'">Delete review (admin)</button>':'')+'</div>').join("");
   const mine=(data.reviews||[]).find(x=>x.is_mine);if(mine){$("#bw-review-rating").value=mine.rating;$("#bw-review-text").value=mine.review||""}
  }catch(e){$("#bw-review-summary").textContent=e.message}
 }
 function init(){
  ensure();
- const nav=$("#navlinks");if(nav)nav.addEventListener("click",e=>{if(e.target.closest("[data-page]")){$("#page-my-shelf")?.classList.add("hidden");$("#page-library-admin")?.classList.add("hidden")}});
+ const nav=$("#navlinks");if(nav)nav.addEventListener("click",e=>{const target=e.target.closest("button");if(target){document.querySelectorAll("#navlinks button").forEach(x=>x.classList.remove("active"));target.classList.add("active");requestAnimationFrame(()=>target.blur())}if(e.target.closest("[data-page]")){$("#page-my-shelf")?.classList.add("hidden");$("#page-library-admin")?.classList.add("hidden")}});
  $("#bw-shelf-refresh")?.addEventListener("click",loadShelf);
  $("#bw-admin-feature-refresh")?.addEventListener("click",loadAdmin);
  $("#bw-bookmark-add")?.addEventListener("click",async()=>{try{const loanId=$("#bw-tool-loan").value;if(!loanId)throw new Error("Choose an active loan.");await api("bookmark-add",{loan_id:loanId,location:$("#bw-bookmark-location").value,label:$("#bw-bookmark-label").value});$("#bw-bookmark-location").value="";$("#bw-bookmark-label").value="";toast("Bookmark saved.");await loadShelf()}catch(e){toast(e.message,true)}});
