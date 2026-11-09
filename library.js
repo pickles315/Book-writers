@@ -6,7 +6,7 @@ const API=SUPABASE_URL+"/functions/v1/library-api";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let token=localStorage.getItem("bw-library-token")||sessionStorage.getItem("bw-library-token")||(()=>{try{return window.BookWritersAndroid?.getSessionToken?.()||""}catch{return""}})(),profile=null,items=[],loans=[],readerBook=null,audio=null,progressTimer=null,offlineMode=false;
+let token=localStorage.getItem("bw-library-token")||sessionStorage.getItem("bw-library-token")||(()=>{try{return (window.BookReadersAndroid||window.BookWritersAndroid)?.getSessionToken?.()||""}catch{return""}})(),profile=null,items=[],loans=[],readerBook=null,audio=null,progressTimer=null,offlineMode=false;
 function savedAccounts(){try{const v=JSON.parse(localStorage.getItem("bw-library-accounts")||"[]");return Array.isArray(v)?v:[]}catch{return[]}}
 function rememberAccount(value,data){if(!value||!data?.card_number)return;const list=savedAccounts().filter(x=>x.card_number!==data.card_number);list.push({card_number:data.card_number,display_name:data.display_name||"Library member",role:data.role||"reader",token:value});localStorage.setItem("bw-library-accounts",JSON.stringify(list));localStorage.setItem("bw-library-active-card",data.card_number)}
 function removeRememberedAccount(){const card=localStorage.getItem("bw-library-active-card");if(card)localStorage.setItem("bw-library-accounts",JSON.stringify(savedAccounts().filter(x=>x.card_number!==card)));localStorage.removeItem("bw-library-active-card")}
@@ -14,9 +14,9 @@ function forgetRememberedToken(value){if(!value)return;const list=savedAccounts(
 function switchCardForm(){const list=savedAccounts();const box=modal('<h2>Switch library card</h2><p class="small">Choose a card saved on this device, or sign in with another card.</p><div id="saved-card-list"></div><div class="actions"><button class="ghost" id="switch-cancel">Cancel</button><button id="switch-add">Add another card</button></div>');const host=$("#saved-card-list",box);host.innerHTML=list.length?list.map((x,i)=>'<button type="button" class="ghost" data-switch-account="'+i+'" style="display:block;width:100%;text-align:left;margin:8px 0"><strong>'+esc(x.display_name)+'</strong><div class="small">Card ending '+esc(x.card_number.slice(-4))+'</div></button>').join(""):'<p class="small">No saved cards yet.</p>';$("#switch-cancel",box).onclick=closeModal;$("#switch-add",box).onclick=()=>{closeModal();authForm("login")};host.querySelectorAll("[data-switch-account]").forEach(b=>b.onclick=async()=>{const account=list[Number(b.dataset.switchAccount)];if(!account)return;token=account.token;localStorage.setItem("bw-library-token",token);sessionStorage.setItem("bw-library-token",token);localStorage.setItem("bw-library-active-card",account.card_number);closeModal();await enterApp()})}
 if(token)localStorage.setItem("bw-library-token",token);
 const toast=(msg,bad=false)=>{const n=$("#toast-root");n.innerHTML='<div class="notice'+(bad?' error':'')+'">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>n.innerHTML="",4200)};
-async function api(action,data={}){try{if(window.BookWritersAndroid){if(token)window.BookWritersAndroid.setSessionToken(token);else window.BookWritersAndroid.clearSessionToken()}}catch{}const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);let res;try{res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify({action,...data}),signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The library server took too long to respond. Check your connection and try again.");throw error}finally{clearTimeout(timeout)}let body={};try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){const rejectedToken=token;token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token");forgetRememberedToken(rejectedToken);try{window.BookWritersAndroid?.clearSessionToken()}catch{}}throw new Error(body.error||"Request failed.")}return body}
-function saveToken(value,details){token=value;localStorage.setItem("bw-library-token",value);sessionStorage.setItem("bw-library-token",value);try{window.BookWritersAndroid?.setSessionToken(value)}catch{}if(details)rememberAccount(value,details)}
-function clearToken(){removeRememberedAccount();token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token");try{window.BookWritersAndroid?.clearSessionToken()}catch{}}
+async function api(action,data={}){try{if((window.BookReadersAndroid||window.BookWritersAndroid)){if(token)(window.BookReadersAndroid||window.BookWritersAndroid).setSessionToken(token);else (window.BookReadersAndroid||window.BookWritersAndroid).clearSessionToken()}}catch{}const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);let res;try{res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify({action,...data}),signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The library server took too long to respond. Check your connection and try again.");throw error}finally{clearTimeout(timeout)}let body={};try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){const rejectedToken=token;token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token");forgetRememberedToken(rejectedToken);try{(window.BookReadersAndroid||window.BookWritersAndroid)?.clearSessionToken()}catch{}}throw new Error(body.error||"Request failed.")}return body}
+function saveToken(value,details){token=value;localStorage.setItem("bw-library-token",value);sessionStorage.setItem("bw-library-token",value);try{(window.BookReadersAndroid||window.BookWritersAndroid)?.setSessionToken(value)}catch{}if(details)rememberAccount(value,details)}
+function clearToken(){removeRememberedAccount();token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token");try{(window.BookReadersAndroid||window.BookWritersAndroid)?.clearSessionToken()}catch{}}
 function showAuth(){profile=null;$("#auth-view").classList.remove("hidden");$("#app-view").classList.add("hidden");$("#navlinks").classList.add("hidden");$("#admin-add").classList.add("hidden");$("#auth-button").textContent="Sign in";$("#auth-button").classList.add("secondary")}
 function showApp(){ $("#auth-view").classList.add("hidden");$("#app-view").classList.remove("hidden");$("#navlinks").classList.remove("hidden");$("#auth-button").textContent="Sign out";$("#auth-button").classList.remove("secondary");$("#admin-add").classList.toggle("hidden",profile?.role!=="admin");$("#card-label").textContent=profile.card_number+" · "+profile.display_name;notificationStatus();const notifyButton=$("#enable-notifications");if(notifyButton)notifyButton.onclick=enableNotifications}
 function modal(html){const root=$("#modal-root");root.innerHTML='<div class="modal"><section class="modal-box">'+html+'</section></div>';root.querySelector(".modal").addEventListener("click",e=>{if(e.target.classList.contains("modal"))root.innerHTML=""});return root.querySelector(".modal-box")}
@@ -70,7 +70,7 @@ async function setReleaseAlert(itemId,button){
  const off=button.dataset.subscribed==="true";
  try{
   if(!off&&"Notification" in window&&Notification.permission==="default"){
-   try{const permission=await Notification.requestPermission();if(permission!=="granted")toast("Notifications are off. Updates will still appear in BookWriters.",true)}catch(permissionError){console.warn("Notification permission unavailable",permissionError)}
+   try{const permission=await Notification.requestPermission();if(permission!=="granted")toast("Notifications are off. Updates will still appear in BookReaders.",true)}catch(permissionError){console.warn("Notification permission unavailable",permissionError)}
   }
   await api(off?"release-alert-unsubscribe":"release-alert-subscribe",{item_id:itemId});
   button.dataset.subscribed=off?"false":"true";
@@ -103,7 +103,7 @@ function nativeNotificationsAvailable(){
 function notificationStatus(){
  const button=$("#enable-notifications"),status=$("#notification-status");
  if(!button||!status)return;
- if(window.BookWritersAndroid){
+ if((window.BookReadersAndroid||window.BookWritersAndroid)){
   button.disabled=false;
   button.textContent="Enable Android notifications";
   status.textContent="Android can check for book updates and due dates in the background and show system notifications.";
@@ -112,19 +112,19 @@ function notificationStatus(){
  if(!nativeNotificationsAvailable()){
   button.disabled=false;
   button.textContent="Enable in-app reminders";
-  status.textContent="This browser does not provide system notifications. In-app reminders can appear while BookWriters is open.";
+  status.textContent="This browser does not provide system notifications. In-app reminders can appear while BookReaders is open.";
   return;
  }
  const permission=Notification.permission;
  button.disabled=permission==="granted";
  button.textContent=permission==="granted"?"Notifications enabled":"Enable notifications";
- status.textContent=permission==="granted"?"You'll get reminders for books due soon and new releases while BookWriters is checking for updates.":permission==="denied"?"System notifications are blocked. In-app reminders will still appear while BookWriters is open.":"Allow system notifications for upcoming return dates and new book releases.";
+ status.textContent=permission==="granted"?"You'll get reminders for books due soon and new releases while BookReaders is checking for updates.":permission==="denied"?"System notifications are blocked. In-app reminders will still appear while BookReaders is open.":"Allow system notifications for upcoming return dates and new book releases.";
 }
 async function enableNotifications(){
- if(window.BookWritersAndroid){
+ if((window.BookReadersAndroid||window.BookWritersAndroid)){
   try{
-   if(token)window.BookWritersAndroid.setSessionToken(token);
-   window.BookWritersAndroid.requestNotificationPermission();
+   if(token)(window.BookReadersAndroid||window.BookWritersAndroid).setSessionToken(token);
+   (window.BookReadersAndroid||window.BookWritersAndroid).requestNotificationPermission();
    toast("Android notification permission requested. Background checks are enabled.");
   }catch(e){toast("Could not request Android notifications. Check app permissions.",true)}
   return;
@@ -132,7 +132,7 @@ async function enableNotifications(){
  if(!nativeNotificationsAvailable()){
   notificationStatus();
   startReleaseNotifications(true);
-  toast("In-app reminders are active while BookWriters is open.");
+  toast("In-app reminders are active while BookReaders is open.");
   return;
  }
  try{
@@ -150,7 +150,7 @@ async function enableNotifications(){
  }
 }
 function showLibraryNotification(n){
- const options={body:n.message,tag:"bookwriters-"+n.id,renotify:false};
+ const options={body:n.message,tag:"BookReaders-"+n.id,renotify:false};
  if(nativeNotificationsAvailable()&&Notification.permission==="granted"){
   if(navigator.serviceWorker?.ready){
    navigator.serviceWorker.ready.then(reg=>reg.showNotification(n.title,options)).catch(()=>{try{new Notification(n.title,options)}catch{toast(n.title+": "+n.message)}});
@@ -226,19 +226,19 @@ async function saveProgress(values){
 }
 async function openEpub(url,loan){
  if(window.epubJsReady){try{await Promise.race([window.epubJsReady,new Promise((_,reject)=>setTimeout(()=>reject(new Error("The EPUB reader library is taking too long to load. Refresh and try again.")),12000))])}catch(error){throw new Error(error.message||"The EPUB reader library could not be loaded.")}}
- if(typeof window.ePub!=="function")throw new Error("The EPUB reader library did not load. Refresh BookWriters and try again.");
+ if(typeof window.ePub!=="function")throw new Error("The EPUB reader library did not load. Refresh BookReaders and try again.");
  const host=$("#reader-content");host.innerHTML="";host.style.display="block";
  const cacheKey=new Request(location.origin+"/__bw_epub_cache__/"+encodeURIComponent(loan.item.id));
  let epubData=null;
  if(url instanceof Blob){epubData=await url.arrayBuffer()}else{
-  try{const cache=await caches.open("bookwriters-epub-files-v1");const saved=await cache.match(cacheKey);if(saved)epubData=await saved.arrayBuffer()}catch(error){console.warn("EPUB cache unavailable",error)}
+  try{const cache=await caches.open("BookReaders-epub-files-v1");const saved=await cache.match(cacheKey);if(saved)epubData=await saved.arrayBuffer()}catch(error){console.warn("EPUB cache unavailable",error)}
  }
  if(!epubData){
   const controller=new AbortController(),downloadTimer=setTimeout(()=>controller.abort(),60000);let response;
   try{response=await fetch(url,{signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The book download timed out. Check your connection and try again.");throw new Error("The book file could not be downloaded. Check your connection and try again.")}finally{clearTimeout(downloadTimer)}
   if(!response.ok)throw new Error("The book file could not be opened (server returned "+response.status+").");
   const copy=response.clone();epubData=await response.arrayBuffer();
-  try{const cache=await caches.open("bookwriters-epub-files-v1");await cache.put(cacheKey,copy)}catch(error){console.warn("Could not save EPUB for faster reopening",error)}
+  try{const cache=await caches.open("BookReaders-epub-files-v1");await cache.put(cacheKey,copy)}catch(error){console.warn("Could not save EPUB for faster reopening",error)}
  }
  if(!epubData.byteLength)throw new Error("The book file is empty.");
  const section=host.closest(".reader-fullscreen");section?.classList.add("reader-immersive");
@@ -347,7 +347,7 @@ function makeImportCover(title){
  const gradient=ctx.createLinearGradient(0,0,600,900);gradient.addColorStop(0,"#172a36");gradient.addColorStop(1,"#315a55");
  ctx.fillStyle=gradient;ctx.fillRect(0,0,600,900);
  ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=3;ctx.strokeRect(34,34,532,832);
- ctx.fillStyle="#d9e8d8";ctx.font="bold 23px Arial";ctx.fillText("BOOKWRITERS",58,95);
+ ctx.fillStyle="#d9e8d8";ctx.font="bold 23px Arial";ctx.fillText("BookReaders",58,95);
  ctx.fillStyle="#ffffff";ctx.font="bold 46px Georgia";
  const words=String(title||"Untitled").split(/\s+/);let lines=[],line="";
  for(const word of words){const test=line?line+" "+word:word;if(ctx.measureText(test).width>470&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);
@@ -358,7 +358,7 @@ function makeImportCover(title){
  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(new File([blob],"cover.png",{type:"image/png"})):reject(new Error("Could not create a cover image.")),"image/png"));
 }
 function bulkImportForm(){
- const box=modal('<h2>Bulk import EPUBs</h2><p class="small">Choose several EPUB files. BookWriters will create a simple temporary cover and leave descriptions and genres for you to edit later.</p><label>EPUB files</label><input id="bulk-epubs" type="file" accept=".epub,application/epub+zip" multiple><p class="small">Titles come from the filenames. Author, genre and description will be left blank or set to defaults.</p><div id="bulk-progress" class="small" aria-live="polite"></div><p id="bulk-error" class="small"></p><div class="actions"><button class="ghost" id="bulk-cancel">Cancel</button><button id="bulk-start">Import books</button></div>');
+ const box=modal('<h2>Bulk import EPUBs</h2><p class="small">Choose several EPUB files. BookReaders will create a simple temporary cover and leave descriptions and genres for you to edit later.</p><label>EPUB files</label><input id="bulk-epubs" type="file" accept=".epub,application/epub+zip" multiple><p class="small">Titles come from the filenames. Author, genre and description will be left blank or set to defaults.</p><div id="bulk-progress" class="small" aria-live="polite"></div><p id="bulk-error" class="small"></p><div class="actions"><button class="ghost" id="bulk-cancel">Cancel</button><button id="bulk-start">Import books</button></div>');
  $("#bulk-cancel",box).onclick=closeModal;
  $("#bulk-start",box).onclick=async()=>{
   const btn=$("#bulk-start",box),files=[...$("#bulk-epubs",box).files],status=$("#bulk-progress",box),err=$("#bulk-error",box);
