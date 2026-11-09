@@ -165,6 +165,12 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun getSessionToken(): String {
+            return getSharedPreferences(NotificationWorker.PREFS, MODE_PRIVATE)
+                .getString(NotificationWorker.TOKEN_KEY, "").orEmpty()
+        }
+
+        @JavascriptInterface
         fun clearSessionToken() {
             getSharedPreferences(NotificationWorker.PREFS, MODE_PRIVATE).edit()
                 .remove(NotificationWorker.TOKEN_KEY)
