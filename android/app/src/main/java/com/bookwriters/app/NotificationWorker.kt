@@ -1,4 +1,4 @@
-package com.bookwriters.app
+package com.BookReaders.app
 
 import android.Manifest
 import android.app.Notification
@@ -57,7 +57,7 @@ class NotificationWorker(
                     val id = item.optString("id")
                     if (id.isBlank() || seen.contains(id) || !item.isNull("read_at")) continue
                     if (showNotification(
-                            item.optString("title", "BookWriters"),
+                            item.optString("title", "BookReaders"),
                             item.optString("message", "You have a library update."),
                             id
                         )
@@ -97,7 +97,7 @@ class NotificationWorker(
             Notification.Builder(applicationContext)
         }
         val notification = builder
-            .setSmallIcon(R.drawable.ic_bookwriters)
+            .setSmallIcon(R.drawable.ic_BookReaders)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(Notification.BigTextStyle().bigText(message))
@@ -109,10 +109,10 @@ class NotificationWorker(
     }
 
     companion object {
-        const val PREFS = "bookwriters_notification_prefs"
+        const val PREFS = "BookReaders_notification_prefs"
         const val TOKEN_KEY = "session_token"
         private const val SEEN_IDS_KEY = "seen_notification_ids"
-        private const val CHANNEL_ID = "bookwriters_library_updates"
+        private const val CHANNEL_ID = "BookReaders_library_updates"
         private const val API_URL = "https://ysomxdoicbfmgbveghkr.supabase.co/functions/v1/library-api"
         private const val SUPABASE_KEY = "sb_publishable_1VtpTU1pGn9yLn6Q_POtsw_Kp5ULXv6"
 
