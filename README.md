@@ -150,7 +150,7 @@ This repository currently uses the installed Gradle command rather than includin
 
 ### Trigger a build on GitHub
 
-A push to `main` that changes Android source, the website's app files, the backend source/migrations, or the workflow will start the APK workflow. You can also start it manually:
+A push to `main` that changes files under `android/` or the APK workflow itself will start the APK workflow. Website-only and backend-only changes do not rebuild the APK because the installed app loads the live website. You can also start a build manually:
 
 1. Open **Actions**.
 2. Select **Build BookReaders Android APK**.
