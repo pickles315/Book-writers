@@ -231,14 +231,14 @@ async function openEpub(url,loan){
  const cacheKey=new Request(location.origin+"/__bw_epub_cache__/"+encodeURIComponent(loan.item.id));
  let epubData=null;
  if(url instanceof Blob){epubData=await url.arrayBuffer()}else{
-  try{const cache=await caches.open("BookReaders-epub-files-v1");const saved=await cache.match(cacheKey);if(saved)epubData=await saved.arrayBuffer()}catch(error){console.warn("EPUB cache unavailable",error)}
+  try{const cache=await caches.open("bookwriters-epub-files-v1");const saved=await cache.match(cacheKey);if(saved)epubData=await saved.arrayBuffer()}catch(error){console.warn("EPUB cache unavailable",error)}
  }
  if(!epubData){
   const controller=new AbortController(),downloadTimer=setTimeout(()=>controller.abort(),60000);let response;
   try{response=await fetch(url,{signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The book download timed out. Check your connection and try again.");throw new Error("The book file could not be downloaded. Check your connection and try again.")}finally{clearTimeout(downloadTimer)}
   if(!response.ok)throw new Error("The book file could not be opened (server returned "+response.status+").");
   const copy=response.clone();epubData=await response.arrayBuffer();
-  try{const cache=await caches.open("BookReaders-epub-files-v1");await cache.put(cacheKey,copy)}catch(error){console.warn("Could not save EPUB for faster reopening",error)}
+  try{const cache=await caches.open("bookwriters-epub-files-v1");await cache.put(cacheKey,copy)}catch(error){console.warn("Could not save EPUB for faster reopening",error)}
  }
  if(!epubData.byteLength)throw new Error("The book file is empty.");
  const section=host.closest(".reader-fullscreen");section?.classList.add("reader-immersive");
