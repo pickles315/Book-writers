@@ -77,7 +77,7 @@ function init(){
  nav.addEventListener("click",e=>{
   const route=e.target.closest("[data-bw-route]")?.dataset.bwRoute;
   if(route){e.preventDefault();openRoute(route);return;}
-  if(e.target.closest("[data-page]")){$("#page-requests")?.classList.add("hidden");$("#page-admin-requests")?.classList.add("hidden");}
+  if(e.target.closest("[data-page]")){$("#page-requests")?.classList.add("hidden");$("#page-admin-requests")?.classList.add("hidden");document.querySelectorAll("[data-bw-route]").forEach(b=>b.classList.remove("active"));}
  });
  $("#bw-request-submit").onclick=async()=>{
   const btn=$("#bw-request-submit"),error=$("#bw-request-error");
