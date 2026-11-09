@@ -16,7 +16,6 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.time.Instant
 
 class NotificationWorker(
     appContext: Context,
@@ -51,17 +50,12 @@ class NotificationWorker(
 
             val body = BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
             val notifications = JSONObject(body).optJSONArray("notifications")
-            val now = System.currentTimeMillis()
-            val lastCheck = prefs.getLong(LAST_CHECK_KEY, now - 120000L)
             val seen = (prefs.getStringSet(SEEN_IDS_KEY, emptySet()) ?: emptySet()).toMutableSet()
             if (notifications != null) {
                 for (index in 0 until notifications.length()) {
                     val item = notifications.optJSONObject(index) ?: continue
                     val id = item.optString("id")
                     if (id.isBlank() || seen.contains(id) || !item.isNull("read_at")) continue
-                    val createdAt = item.optString("created_at")
-                    val createdMs = try { Instant.parse(createdAt).toEpochMilli() } catch (_: Exception) { 0L }
-                    if (createdMs < lastCheck - 60000L) continue
                     if (showNotification(
                             item.optString("title", "BookWriters"),
                             item.optString("message", "You have a library update."),
@@ -71,7 +65,6 @@ class NotificationWorker(
                 }
             }
             prefs.edit()
-                .putLong(LAST_CHECK_KEY, now)
                 .putStringSet(SEEN_IDS_KEY, seen)
                 .apply()
             return Result.success()
@@ -118,7 +111,6 @@ class NotificationWorker(
     companion object {
         const val PREFS = "bookwriters_notification_prefs"
         const val TOKEN_KEY = "session_token"
-        private const val LAST_CHECK_KEY = "last_check_ms"
         private const val SEEN_IDS_KEY = "seen_notification_ids"
         private const val CHANNEL_ID = "bookwriters_library_updates"
         private const val API_URL = "https://ysomxdoicbfmgbveghkr.supabase.co/functions/v1/library-api"
