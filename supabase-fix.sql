@@ -1,4 +1,4 @@
--- BookWriters signup and row-level security fix
+-- BookReaders signup and row-level security fix
 -- Run this in Supabase SQL Editor after creating the five app tables.
 -- This replaces policies on the app tables with a known, consistent set.
 
