@@ -73,7 +73,7 @@ try{const file=await url(x.epub_path);if(!file)throw Error('Cannot access EPUB f
 async function boot(){
   const showBootError=message=>{
     const main=$('main.wrap');
-    if(main)main.innerHTML='<section class="hero"><div class="hero-main"><div class="eyebrow">BookWriters</div><h1>We couldn’t start the library.</h1><p>'+esc(message)+'</p><button type="button" onclick="location.reload()">Try again</button></div></section>';
+    if(main)main.innerHTML='<section class="hero"><div class="hero-main"><div class="eyebrow">BookReaders</div><h1>We couldn’t start the library.</h1><p>'+esc(message)+'</p><button type="button" onclick="location.reload()">Try again</button></div></section>';
   };
   try{
     if(!window.supabase){
@@ -88,7 +88,7 @@ async function boot(){
     db=window.supabase.createClient(URL,KEY);
     init();
   }catch(error){
-    console.error('BookWriters startup failed:',error);
+    console.error('BookReaders startup failed:',error);
     showBootError(error.message||'Please reload and try again.');
   }
 }
