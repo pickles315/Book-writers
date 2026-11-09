@@ -224,6 +224,51 @@ input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0
  *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
 
+/* BookWriters polish pass: page motion, catalogue rhythm, and touch feedback */
+#page-discover:not(.hidden),#page-loans:not(.hidden),#page-settings:not(.hidden){
+ animation:bw-page-arrive .24s cubic-bezier(.2,.7,.25,1) both;
+}
+#catalogue>.item,#loan-list>.item{
+ animation:bw-card-arrive .28s cubic-bezier(.2,.7,.25,1) both;
+}
+#catalogue>.item:nth-child(2),#loan-list>.item:nth-child(2){animation-delay:.025s}
+#catalogue>.item:nth-child(3),#loan-list>.item:nth-child(3){animation-delay:.05s}
+#catalogue>.item:nth-child(4),#loan-list>.item:nth-child(4){animation-delay:.075s}
+#catalogue>.item:nth-child(5),#loan-list>.item:nth-child(5){animation-delay:.1s}
+#catalogue>.item:nth-child(6),#loan-list>.item:nth-child(6){animation-delay:.125s}
+#catalogue>.item:nth-child(7),#loan-list>.item:nth-child(7){animation-delay:.15s}
+#catalogue>.item:nth-child(8),#loan-list>.item:nth-child(8){animation-delay:.175s}
+.empty{
+ min-height:116px;display:flex;align-items:center;justify-content:center;
+ border-radius:17px;background:color-mix(in srgb,var(--card) 72%,var(--paper));
+ border:1px dashed color-mix(in srgb,var(--line) 72%,var(--green));
+ padding:26px 18px;line-height:1.55;
+}
+.state-panel{border-radius:22px}
+.state-panel button{min-width:132px}
+.book-title{
+ display:inline;padding:0;background:transparent;color:var(--ink);
+ font:inherit;font-weight:750;line-height:1.2;text-align:left;
+ text-decoration:underline;text-decoration-color:transparent;
+ text-underline-offset:3px;transition:text-decoration-color .18s ease,color .18s ease;
+}
+.book-title:hover{color:var(--green);text-decoration-color:currentColor}
+.navlinks button{min-height:40px;border-radius:11px}
+.settings-row{transition:background-color .18s ease}
+.settings-row:focus-within{background:color-mix(in srgb,var(--green-soft) 38%,transparent)}
+button:disabled{filter:saturate(.65)}
+@keyframes bw-page-arrive{from{opacity:.65;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bw-card-arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:650px){
+ #catalogue>.item,#loan-list>.item{animation-duration:.2s}
+ .empty{min-height:100px;padding:22px 14px}
+ .book-title{min-height:28px}
+}
+@media(prefers-reduced-motion:reduce){
+ #page-discover:not(.hidden),#page-loans:not(.hidden),#page-settings:not(.hidden),
+ #catalogue>.item,#loan-list>.item{animation:none!important}
+}
+
 </style>
 </head>
 <body>
