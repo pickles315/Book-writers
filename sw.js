@@ -1,5 +1,5 @@
-const CACHE_NAME="bookwriters-shell-v49";
-const LOCAL_FILES=["./","./index.html","./jszip.min.js","./library.js?v=library-41","./book-details.js?v=book-details-6","./requests.js?v=3","./features.js?v=4","./offline.js?v=5","./extras.js?v=4"];
+const CACHE_NAME="bookwriters-shell-v50";
+const LOCAL_FILES=["./","./index.html","./jszip.min.js","./library.js?v=library-42","./book-details.js?v=book-details-7","./requests.js?v=3","./features.js?v=4","./offline.js?v=5","./extras.js?v=4"];
 const CDN_FILES=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0","https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"];
 
 self.addEventListener("install",event=>{
