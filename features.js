@@ -13,7 +13,7 @@ async function api(action,data={}) {
  return body;
 }
 function toast(message,bad=false){let n=$("#bw-feature-toast");if(!n){n=document.createElement("div");n.id="bw-feature-toast";n.className="notice";document.body.appendChild(n)}n.textContent=message;n.classList.toggle("error",bad);clearTimeout(n.timer);n.timer=setTimeout(()=>n.remove(),3500)}
-function card(item,extra=""){return '<article class="item"><img class="cover '+(item.media_type==="audiobook"?"audio":"")+'" src="'+esc(item.cover_url||"")+'" alt=""><h3>'+esc(item.title||"Untitled")+'</h3><div class="author">By '+esc(item.author||"Unknown author")+'</div><div class="meta"><span class="tag">'+esc(item.media_type||"Book")+'</span></div>'+extra+'</article>'}
+function card(item,extra=""){return '<article class="item"><img class="cover '+(item.media_type==="audiobook"?"audio":"")+'" src="'+esc(item.cover_url||"")+'" alt=""><h3>'+esc(item.title||"Untitled")+'</h3><div class="author">By '+esc(item.author||"Unknown author")+'</div><div class="meta"><span class="tag">'+esc(item.media_type||"Book")+'</span>'+(item.released===false?'<span class="tag">Estimated release: '+(item.release_date?new Date(item.release_date+"T00:00:00").toLocaleDateString():"TBD")+'</span>':'')+'</div>'+extra+'</article>'}
 function ensure(){
  const nav=$("#navlinks"),app=$("#app-view");if(!nav||!app||$("#page-my-shelf"))return;
  const shelf=document.createElement("button");shelf.type="button";shelf.dataset.bwFeature="shelf";shelf.textContent="My shelf";nav.insertBefore(shelf,$("#admin-add"));
