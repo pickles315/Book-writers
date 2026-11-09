@@ -13,9 +13,9 @@ function removeRememberedAccount(){const card=localStorage.getItem("bw-library-a
 function switchCardForm(){const list=savedAccounts();const box=modal('<h2>Switch library card</h2><p class="small">Choose a card saved on this device, or sign in with another card.</p><div id="saved-card-list"></div><div class="actions"><button class="ghost" id="switch-cancel">Cancel</button><button id="switch-add">Add another card</button></div>');const host=$("#saved-card-list",box);host.innerHTML=list.length?list.map((x,i)=>'<button type="button" class="ghost" data-switch-account="'+i+'" style="display:block;width:100%;text-align:left;margin:8px 0"><strong>'+esc(x.display_name)+'</strong><div class="small">Card ending '+esc(x.card_number.slice(-4))+'</div></button>').join(""):'<p class="small">No saved cards yet.</p>';$("#switch-cancel",box).onclick=closeModal;$("#switch-add",box).onclick=()=>{closeModal();authForm("login")};host.querySelectorAll("[data-switch-account]").forEach(b=>b.onclick=async()=>{const account=list[Number(b.dataset.switchAccount)];if(!account)return;token=account.token;localStorage.setItem("bw-library-token",token);sessionStorage.setItem("bw-library-token",token);localStorage.setItem("bw-library-active-card",account.card_number);closeModal();await enterApp()})}
 if(token)localStorage.setItem("bw-library-token",token);
 const toast=(msg,bad=false)=>{const n=$("#toast-root");n.innerHTML='<div class="notice'+(bad?' error':'')+'">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>n.innerHTML="",4200)};
-async function api(action,data={}){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);let res;try{res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify({action,...data}),signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The library server took too long to respond. Check your connection and try again.");throw error}finally{clearTimeout(timeout)}let body={};try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token")}throw new Error(body.error||"Request failed.")}return body}
-function saveToken(value,details){token=value;localStorage.setItem("bw-library-token",value);sessionStorage.setItem("bw-library-token",value);if(details)rememberAccount(value,details)}
-function clearToken(){removeRememberedAccount();token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token")}
+async function api(action,data={}){try{if(window.BookWritersAndroid){if(token)window.BookWritersAndroid.setSessionToken(token);else window.BookWritersAndroid.clearSessionToken()}}catch{}const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);let res;try{res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify({action,...data}),signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The library server took too long to respond. Check your connection and try again.");throw error}finally{clearTimeout(timeout)}let body={};try{body=await res.json()}catch{}if(!res.ok){if(res.status===401){token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token")}throw new Error(body.error||"Request failed.")}return body}
+function saveToken(value,details){token=value;localStorage.setItem("bw-library-token",value);sessionStorage.setItem("bw-library-token",value);try{window.BookWritersAndroid?.setSessionToken(value)}catch{}if(details)rememberAccount(value,details)}
+function clearToken(){removeRememberedAccount();token="";localStorage.removeItem("bw-library-token");sessionStorage.removeItem("bw-library-token");try{window.BookWritersAndroid?.clearSessionToken()}catch{}}
 function showAuth(){profile=null;$("#auth-view").classList.remove("hidden");$("#app-view").classList.add("hidden");$("#navlinks").classList.add("hidden");$("#admin-add").classList.add("hidden");$("#auth-button").textContent="Sign in";$("#auth-button").classList.add("secondary")}
 function showApp(){ $("#auth-view").classList.add("hidden");$("#app-view").classList.remove("hidden");$("#navlinks").classList.remove("hidden");$("#auth-button").textContent="Sign out";$("#auth-button").classList.remove("secondary");$("#admin-add").classList.toggle("hidden",profile?.role!=="admin");$("#card-label").textContent=profile.card_number+" · "+profile.display_name;notificationStatus();const notifyButton=$("#enable-notifications");if(notifyButton)notifyButton.onclick=enableNotifications}
 function modal(html){const root=$("#modal-root");root.innerHTML='<div class="modal"><section class="modal-box">'+html+'</section></div>';root.querySelector(".modal").addEventListener("click",e=>{if(e.target.classList.contains("modal"))root.innerHTML=""});return root.querySelector(".modal-box")}
@@ -102,10 +102,16 @@ function nativeNotificationsAvailable(){
 function notificationStatus(){
  const button=$("#enable-notifications"),status=$("#notification-status");
  if(!button||!status)return;
+ if(window.BookWritersAndroid){
+  button.disabled=false;
+  button.textContent="Enable Android notifications";
+  status.textContent="Android can check for book updates and due dates in the background and show system notifications.";
+  return;
+ }
  if(!nativeNotificationsAvailable()){
   button.disabled=false;
   button.textContent="Enable in-app reminders";
-  status.textContent="This app's Android WebView does not provide system notifications. In-app reminders can appear while BookWriters is open.";
+  status.textContent="This browser does not provide system notifications. In-app reminders can appear while BookWriters is open.";
   return;
  }
  const permission=Notification.permission;
@@ -114,6 +120,14 @@ function notificationStatus(){
  status.textContent=permission==="granted"?"You'll get reminders for books due soon and new releases while BookWriters is checking for updates.":permission==="denied"?"System notifications are blocked. In-app reminders will still appear while BookWriters is open.":"Allow system notifications for upcoming return dates and new book releases.";
 }
 async function enableNotifications(){
+ if(window.BookWritersAndroid){
+  try{
+   if(token)window.BookWritersAndroid.setSessionToken(token);
+   window.BookWritersAndroid.requestNotificationPermission();
+   toast("Android notification permission requested. Background checks are enabled.");
+  }catch(e){toast("Could not request Android notifications. Check app permissions.",true)}
+  return;
+ }
  if(!nativeNotificationsAvailable()){
   notificationStatus();
   startReleaseNotifications(true);
