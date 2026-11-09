@@ -1,4 +1,4 @@
-package com.BookReaders.app
+package com.bookwriters.app
 
 import android.Manifest
 import android.app.Activity
@@ -150,7 +150,7 @@ class MainActivity : Activity() {
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         WorkManager.getInstance(this).enqueueUniqueWork(
-            "BookReaders-notifications-now",
+            "bookwriters-notifications-now",
             ExistingWorkPolicy.REPLACE,
             request
         )
@@ -251,7 +251,7 @@ class MainActivity : Activity() {
     companion object {
         private const val FILE_CHOOSER_REQUEST = 1001
         private const val REQUEST_NOTIFICATION_PERMISSION = 1002
-        private const val BACKGROUND_WORK_NAME = "BookReaders-background-notifications"
+        private const val BACKGROUND_WORK_NAME = "bookwriters-background-notifications"
         private const val SITE_URL = "https://pickles315.github.io/Book-writers/"
     }
 }
