@@ -1,4 +1,4 @@
-const CACHE_NAME="bookwriters-shell-v67";
+const CACHE_NAME="bookreaders-shell-v68";
 const LOCAL_FILES=["./","./index.html","./jszip.min.js","./library.js?v=library-48","./book-details.js?v=book-details-8","./requests.js?v=3","./features.js?v=9","./offline.js?v=5","./extras.js?v=10"];
 const CDN_FILES=["https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0","https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"];
 
@@ -19,7 +19,7 @@ self.addEventListener("install",event=>{
 self.addEventListener("activate",event=>{
  event.waitUntil((async()=>{
   const keys=await caches.keys();
-  await Promise.all(keys.filter(key=>key.startsWith("bookwriters-shell-")&&key!==CACHE_NAME).map(key=>caches.delete(key)));
+  await Promise.all(keys.filter(key=>(key.startsWith("bookwriters-shell-")||key.startsWith("bookreaders-shell-"))&&key!==CACHE_NAME).map(key=>caches.delete(key)));
   await self.clients.claim();
  })());
 });
