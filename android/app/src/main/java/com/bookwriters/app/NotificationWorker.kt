@@ -97,7 +97,7 @@ class NotificationWorker(
             Notification.Builder(applicationContext)
         }
         val notification = builder
-            .setSmallIcon(R.drawable.ic_BookReaders)
+            .setSmallIcon(R.drawable.ic_bookreaders)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(Notification.BigTextStyle().bigText(message))
