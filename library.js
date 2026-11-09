@@ -96,46 +96,74 @@ async function openSampleEpub(itemId,title){
  }catch(e){const host=$("#reader-content");if(host)host.textContent=e.message;else toast(e.message,true)}
 }
 let notificationTimer=null;
+function nativeNotificationsAvailable(){
+ return "Notification" in window && typeof Notification.requestPermission==="function";
+}
 function notificationStatus(){
  const button=$("#enable-notifications"),status=$("#notification-status");
  if(!button||!status)return;
- if(!("Notification" in window)){button.disabled=true;button.textContent="Not supported";status.textContent="This browser or app does not support browser notifications.";return}
+ if(!nativeNotificationsAvailable()){
+  button.disabled=false;
+  button.textContent="Enable in-app reminders";
+  status.textContent="This app's Android WebView does not provide system notifications. In-app reminders can appear while BookWriters is open.";
+  return;
+ }
  const permission=Notification.permission;
  button.disabled=permission==="granted";
  button.textContent=permission==="granted"?"Notifications enabled":"Enable notifications";
- status.textContent=permission==="granted"?"You'll get reminders for books due soon and new releases while BookWriters is checking for updates.":permission==="denied"?"Notifications are blocked by your browser. Change the site permission in browser settings to enable them.":"Allow reminders for upcoming return dates and new book releases.";
+ status.textContent=permission==="granted"?"You'll get reminders for books due soon and new releases while BookWriters is checking for updates.":permission==="denied"?"System notifications are blocked. In-app reminders will still appear while BookWriters is open.":"Allow system notifications for upcoming return dates and new book releases.";
 }
 async function enableNotifications(){
- if(!("Notification" in window)){toast("This browser does not support notifications.",true);notificationStatus();return}
+ if(!nativeNotificationsAvailable()){
+  notificationStatus();
+  startReleaseNotifications(true);
+  toast("In-app reminders are active while BookWriters is open.");
+  return;
+ }
  try{
   const permission=await Notification.requestPermission();
   notificationStatus();
   if(permission==="granted"){toast("Notifications enabled.");startReleaseNotifications(true)}
-  else toast(permission==="denied"?"Notifications are blocked in browser settings.":"No notification permission was granted.",true);
- }catch(e){toast("The browser couldn't request notification permission.",true)}
+  else{
+   startReleaseNotifications(true);
+   toast(permission==="denied"?"System notifications are blocked. In-app reminders will still work while the app is open.":"Permission wasn't granted. In-app reminders will still work while the app is open.",true);
+  }
+ }catch(e){
+  startReleaseNotifications(true);
+  toast("System notifications aren't available here. In-app reminders will work while the app is open.",true);
+  notificationStatus();
+ }
 }
 function showLibraryNotification(n){
  const options={body:n.message,tag:"bookwriters-"+n.id,renotify:false};
- if(navigator.serviceWorker&&navigator.serviceWorker.ready){
-  navigator.serviceWorker.ready.then(reg=>reg.showNotification(n.title,options)).catch(()=>{try{new Notification(n.title,options)}catch{}});
- }else{try{new Notification(n.title,options)}catch{}}
+ if(nativeNotificationsAvailable()&&Notification.permission==="granted"){
+  if(navigator.serviceWorker?.ready){
+   navigator.serviceWorker.ready.then(reg=>reg.showNotification(n.title,options)).catch(()=>{try{new Notification(n.title,options)}catch{toast(n.title+": "+n.message)}});
+  }else{try{new Notification(n.title,options)}catch{toast(n.title+": "+n.message)}}
+ }else if(document.visibilityState==="visible"){
+  toast(n.title+": "+n.message);
+ }
 }
-function startReleaseNotifications(immediate=false){
+function startReleaseNotifications(){
  if(notificationTimer)clearInterval(notificationTimer);
  const check=async()=>{
-  if(!token||!profile||!navigator.onLine||!("Notification" in window)||Notification.permission!=="granted")return;
+  if(!token||!profile||!navigator.onLine||document.visibilityState!=="visible")return;
   try{
    const data=await api("notifications");
    const seen=JSON.parse(localStorage.getItem("bw-notifications-shown")||"[]"),next=[...seen];
    for(const n of (data.notifications||[]).filter(x=>!x.read_at&&(x.kind==="book-released"||x.kind==="due-date"))){
-    if(!seen.includes(n.id)){showLibraryNotification(n);next.push(n.id)}
+    if(!seen.includes(n.id)){
+     showLibraryNotification(n);
+     next.push(n.id);
+    }
    }
    localStorage.setItem("bw-notifications-shown",JSON.stringify(next.slice(-150)));
   }catch(e){console.warn("Notification check failed",e)}
  };
- if(immediate)check();else check();
+ check();
  notificationTimer=setInterval(check,45000);
 }
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&token&&profile)startReleaseNotifications()});
 
 window.bwOpenSample=openSampleEpub;
 async function loadPublicStats(){try{const data=await api("public-stats");$("#public-borrowed-count").textContent=Number(data.books_borrowed||0).toLocaleString()}catch(e){$("#public-borrowed-count").textContent="—"}}
