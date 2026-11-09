@@ -269,6 +269,19 @@ button:disabled{filter:saturate(.65)}
  #catalogue>.item,#loan-list>.item{animation:none!important}
 }
 
+
+/* Immersive EPUB reader: content first, controls only when requested. */
+.reader-fullscreen.reader-immersive{padding:0!important;min-height:100dvh;height:100dvh;overflow:hidden}
+.reader-immersive .reader-stage{position:absolute;inset:0;width:100%;height:100%!important;min-height:0!important;max-height:none!important;border-radius:0;background:var(--paper);overflow:hidden}
+.reader-immersive .reader-topbar{position:absolute;z-index:12;top:calc(env(safe-area-inset-top) + 8px);left:10px;right:58px;margin:0;padding:7px 10px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 5px 20px #0003;opacity:0;visibility:hidden;transition:opacity .16s ease}
+.reader-immersive.reader-menu-open .reader-topbar{opacity:1;visibility:visible}
+.reader-immersive .reader-controls{position:absolute;z-index:12;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);margin:0;padding:8px 10px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 5px 20px #0003;opacity:0;visibility:hidden;transition:opacity .16s ease}
+.reader-immersive.reader-menu-open .reader-controls{opacity:1;visibility:visible}
+.reader-bookmark{position:absolute;z-index:15;top:calc(env(safe-area-inset-top) + 10px);right:12px;width:42px;height:42px;padding:0;border:1px solid var(--line);border-radius:13px;background:var(--card);color:var(--green);font-size:1.35rem;box-shadow:0 5px 18px #0003}
+.reader-immersive .reader-close{flex:0 0 38px}
+.reader-immersive .reader-topbar strong{color:var(--ink)}
+.reader-immersive .reader-stage iframe{border:0!important}
+
 </style>
 </head>
 <body>
@@ -302,7 +315,7 @@ button:disabled{filter:saturate(.65)}
   </section>
 </main>
 <div id="modal-root"></div><div id="toast-root"></div>
-<script src="./library.js?v=library-45"></script>
+<script src="./library.js?v=library-46"></script>
 <script src="./book-details.js?v=book-details-8"></script>
 <script src="./requests.js?v=3"></script>
 <script src="./features.js?v=9"></script>
