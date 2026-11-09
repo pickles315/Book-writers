@@ -17,8 +17,8 @@ async function saveProfile(profile){if(profile?.card_number)await write(RECORDS,
 async function getProfile(card){if(!card)return null;return (await read(RECORDS,profileKey(card)))?.value||null}
 async function saveLoans(card,loans){if(card)await write(RECORDS,{key:loansKey(card),value:loans,saved_at:Date.now()})}
 async function getLoans(card){if(!card)return null;return (await read(RECORDS,loansKey(card)))?.value||null}
-async function getUrl(itemId){const row=await read(MEDIA,itemId);return row?.blob?URL.createObjectURL(row.blob):null}
-window.bwOffline={getUrl,has:async id=>!!(await read(MEDIA,id))?.blob,remove,saveProfile,getProfile,saveLoans,getLoans,coverUrl,downloadLoan,autoDownloadLoans};
+async function getUrl(itemId){const row=await read(MEDIA,itemId);return row?.blob?URL.createObjectURL(row.blob):null}async function getBlob(itemId){const row=await read(MEDIA,itemId);return row?.blob||null}
+window.bwOffline={getUrl,getBlob,has:async id=>!!(await read(MEDIA,id))?.blob,remove,saveProfile,getProfile,saveLoans,getLoans,coverUrl,downloadLoan,autoDownloadLoans};
 function notice(message,bad=false){let n=document.querySelector("#bw-feature-toast");if(!n){n=document.createElement("div");n.id="bw-feature-toast";n.className="notice";document.body.appendChild(n)}n.textContent=message;n.classList.toggle("error",bad);clearTimeout(n.timer);n.timer=setTimeout(()=>n.remove(),4500)}
 async function api(action,data){const t=token();const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json","apikey":KEY,...(t?{Authorization:"Bearer "+t}:{})},body:JSON.stringify({action,...data})});const body=await res.json().catch(()=>({}));if(!res.ok)throw new Error(body.error||"Request failed.");return body}
 async function syncButtons(){for(const button of document.querySelectorAll("[data-offline-save]")){try{const saved=await read(MEDIA,button.dataset.offlineItem);button.textContent=saved?.blob?"Downloaded · Remove offline":"Download offline";button.dataset.saved=saved?.blob?"1":"0"}catch{}}}
