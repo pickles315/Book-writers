@@ -1,4 +1,4 @@
--- Additive migration applied to the BookWriters Supabase project.
+-- Additive migration applied to the BookReaders Supabase project.
 -- Supports metadata-only unreleased catalogue entries, optional EPUB samples,
 -- and reader release-alert subscriptions.
 alter table public.library_items
