@@ -515,6 +515,24 @@ Deno.serve(async (req: Request) => {
       return json({ reviews, average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
     }
 
+    if (action === "reading-history") {
+      const { data: loans, error } = await db.from("library_loans")
+        .select("id,item_id,borrowed_at,returned_at")
+        .eq("card_id", card.id).not("returned_at", "is", null)
+        .order("returned_at", { ascending: false }).limit(50);
+      if (error) throw error;
+      const ids = [...new Set((loans || []).map((x: any) => x.item_id))];
+      const { data: items, error: itemError } = ids.length
+        ? await db.from("library_items").select("id,title,author,media_type,cover_path").in("id", ids)
+        : { data: [], error: null };
+      if (itemError) throw itemError;
+      const map = new Map((items || []).map((x: any) => [x.id, x]));
+      return json({ items: await Promise.all((loans || []).filter((x: any) => map.has(x.item_id)).map(async (x: any) => ({
+        ...map.get(x.item_id), loan_id:x.id, borrowed_at:x.borrowed_at, returned_at:x.returned_at,
+        cover_url: await signedCover(map.get(x.item_id)?.cover_path || null)
+      }))) });
+    }
+
     if (action === "review-save") {
       const itemId = String(body.item_id || "");
       const rating = Number(body.rating);
@@ -524,6 +542,20 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await db.from("library_reviews").upsert({ card_id: card.id, item_id: itemId, rating, review, updated_at: new Date().toISOString() }, { onConflict: "card_id,item_id" }).select("id,rating,review,updated_at").single();
       if (error) throw error;
       return json({ review: data });
+    }
+    if (action === "review-delete") {
+      const itemId = String(body.item_id || "");
+      const { error } = await db.from("library_reviews").delete().eq("card_id", card.id).eq("item_id", itemId);
+      if (error) throw error;
+      return json({ ok:true });
+    }
+    if (action === "admin-review-delete") {
+      if (!(await adminOnly(card))) return fail("Administrator access required.", 403);
+      const reviewId = String(body.review_id || "");
+      if (!reviewId) return fail("Review not found.", 404);
+      const { error } = await db.from("library_reviews").delete().eq("id", reviewId);
+      if (error) throw error;
+      return json({ ok:true });
     }
     if (action === "waitlist") {
       const { data, error } = await db.from("library_waitlist").select("id,item_id,status,created_at").eq("card_id", card.id).in("status", ["waiting","ready"]).order("created_at", { ascending: false });
