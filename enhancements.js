@@ -1,4 +1,4 @@
-/* BookWriters enhancements: progressive UI features and export tools. */
+/* BookReaders enhancements: progressive UI features and export tools. */
 (() => {
   'use strict';
   const $ = (s, root=document) => root.querySelector(s);
@@ -46,7 +46,7 @@
     const {data:chapters,error:ce}=await db.from('chapters').select('id,title,content,chapter_order').eq('book_id',bookId).order('chapter_order',{ascending:true});
     if(ce)throw ce;
     const {data:author}=await db.from('profiles').select('display_name,username').eq('id',book.owner_id).maybeSingle();
-    return {book,chapters:chapters||[],author:author?.display_name||author?.username||'BookWriters author'};
+    return {book,chapters:chapters||[],author:author?.display_name||author?.username||'BookReaders author'};
   }
   async function exportTxt(id) {
     const {book,chapters,author}=await getBookData(id);
