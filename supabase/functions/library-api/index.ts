@@ -497,6 +497,27 @@ Deno.serve(async (req: Request) => {
       const itemId = String(body.item_id || "");
       const { data, error } = await db.from("library_reviews").select("id,card_id,rating,review,created_at,updated_at").eq("item_id", itemId).order("created_at", { ascending: false });
       if (error) throw error;
+      const rows = data || [], ids = [...new Set(rows.map((x: any) => x.card_id))];
+      const [{ data: cards, error: cardError }, { data: profiles, error: profileError }] = await Promise.all([
+        ids.length ? db.from("library_cards").select("id,display_name").in("id", ids) : { data: [], error: null },
+        ids.length ? db.from("library_reader_profiles").select("card_id,is_public,anonymous_reviews,avatar_path,avatar_status,bio,favorite_genre").in("card_id", ids) : { data: [], error: null }
+      ]);
+      if (cardError || profileError) throw cardError || profileError;
+      const cardMap = new Map((cards || []).map((x: any) => [x.id,x])), profileMap = new Map((profiles || []).map((x: any) => [x.card_id,x]));
+      const reviews = await Promise.all(rows.map(async (x: any) => {
+        const p = profileMap.get(x.card_id), anonymous = p?.anonymous_reviews === true, isMine = x.card_id === card.id;
+        const publicProfile = !anonymous && p?.is_public === true;
+        const avatarUrl = publicProfile && p?.avatar_status === "approved" && p?.avatar_path ? (await db.storage.from("reader-avatars").createSignedUrl(p.avatar_path, 900)).data?.signedUrl || null : null;
+        return { id:x.id, rating:x.rating, review:x.review, created_at:x.created_at, updated_at:x.updated_at, is_mine:isMine,
+          author_name: anonymous ? "Anonymous reader" : (cardMap.get(x.card_id)?.display_name || "Reader"),
+          profile_id: publicProfile ? x.card_id : null, avatar_url: avatarUrl };
+      }));
+      return json({ reviews, average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
+    }
+
+      const itemId = String(body.item_id || "");
+      const { data, error } = await db.from("library_reviews").select("id,card_id,rating,review,created_at,updated_at").eq("item_id", itemId).order("created_at", { ascending: false });
+      if (error) throw error;
       const rows = data || [];
       return json({ reviews: rows.map((x: any) => ({ ...x, is_mine: x.card_id === card.id, card_id: undefined })), average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
     }
@@ -725,6 +746,18 @@ Deno.serve(async (req: Request) => {
       }
       return json({ ok: true });
     }
+    if (action === "public-reader-profile") {
+      const profileId = String(body.profile_id || "");
+      if (!profileId) return fail("Profile not found.", 404);
+      const [{ data: profile, error }, { data: cardData, error: cardError }] = await Promise.all([
+        db.from("library_reader_profiles").select("is_public,bio,bio_status,favorite_genre,avatar_path,avatar_status,profile_theme").eq("card_id", profileId).maybeSingle(),
+        db.from("library_cards").select("id,display_name,created_at").eq("id", profileId).is("disabled_at", null).maybeSingle()
+      ]);
+      if (error || cardError) throw error || cardError;
+      if (!cardData || !profile?.is_public || profile.bio_status === "pending") return fail("This profile is private or unavailable.", 404);
+      const avatarUrl = profile.avatar_status === "approved" && profile.avatar_path ? (await db.storage.from("reader-avatars").createSignedUrl(profile.avatar_path, 900)).data?.signedUrl || null : null;
+      return json({ profile: { display_name:cardData.display_name, member_since:cardData.created_at, bio:profile.bio || "", favorite_genre:profile.favorite_genre || "", avatar_url:avatarUrl, profile_theme:profile.profile_theme || "default" } });
+    }
     if (action === "reader-profile") {
       if (body.display_name !== undefined) {
         const displayName = String(body.display_name || "").trim();
@@ -732,18 +765,21 @@ Deno.serve(async (req: Request) => {
         const { error } = await db.from("library_cards").update({ display_name: displayName }).eq("id", card.id);
         if (error) throw error;
       }
-      if (body.bio !== undefined || body.favorite_genre !== undefined) {
+      if (body.bio !== undefined || body.favorite_genre !== undefined || body.is_public !== undefined || body.anonymous_reviews !== undefined) {
         const bio = String(body.bio || "").trim(), favoriteGenre = String(body.favorite_genre || "").trim();
         if (bio.length > 240 || favoriteGenre.length > 60) return fail("Profile text is too long.");
-        const { error } = await db.from("library_reader_profiles").upsert({ card_id: card.id, bio, favorite_genre: favoriteGenre, updated_at: new Date().toISOString() }, { onConflict: "card_id" });
+        const profileUpdate: any = { card_id: card.id, bio, favorite_genre: favoriteGenre, updated_at: new Date().toISOString() };
+        if (body.is_public !== undefined) profileUpdate.is_public = body.is_public === true;
+        if (body.anonymous_reviews !== undefined) profileUpdate.anonymous_reviews = body.anonymous_reviews === true;
+        const { error } = await db.from("library_reader_profiles").upsert(profileUpdate, { onConflict: "card_id" });
         if (error) throw error;
       }
       const [{ data: profile }, { data: cardData }] = await Promise.all([
-        db.from("library_reader_profiles").select("bio,favorite_genre,avatar_path,avatar_status,profile_theme").eq("card_id", card.id).maybeSingle(),
+        db.from("library_reader_profiles").select("bio,favorite_genre,avatar_path,avatar_status,profile_theme,is_public,anonymous_reviews,bio_status").eq("card_id", card.id).maybeSingle(),
         db.from("library_cards").select("display_name,card_number,created_at").eq("id", card.id).single()
       ]);
       const avatarUrl = profile?.avatar_status === "approved" && profile?.avatar_path ? (await db.storage.from("reader-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl || null : null;
-      return json({ profile: { display_name: cardData.display_name, card_suffix: String(cardData.card_number).slice(-4), member_since: cardData.created_at, bio: profile?.bio || "", favorite_genre: profile?.favorite_genre || "", avatar_url: avatarUrl, avatar_status: profile?.avatar_status || "none", profile_theme: profile?.profile_theme || "default" } });
+      return json({ profile: { display_name: cardData.display_name, card_suffix: String(cardData.card_number).slice(-4), member_since: cardData.created_at, bio: profile?.bio || "", favorite_genre: profile?.favorite_genre || "", avatar_url: avatarUrl, avatar_status: profile?.avatar_status || "none", profile_theme: profile?.profile_theme || "default", is_public: profile?.is_public === true, anonymous_reviews: profile?.anonymous_reviews === true, bio_status: profile?.bio_status || "approved" } });
     }
     if (action === "announcements") {
       const { data, error } = await db.from("library_announcements").select("id,title,message,created_at").eq("is_published", true).order("created_at", { ascending: false }).limit(12);
