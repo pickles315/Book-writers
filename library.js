@@ -199,27 +199,40 @@ async function openLoan(loanId){
  panel.classList.add("reader-open");
  try{
   if(loan.item.media_type==="audiobook"&&audio&&currentAudioLoanId===loan.id){renderAudioView(loan);return}
-  let offlineUrl=null;if(window.bwOffline){try{offlineUrl=await window.bwOffline.getUrl(loan.item.id)}catch(offlineError){console.warn("Offline cache unavailable; opening from library server instead.",offlineError)}}
-  let media;if(offlineUrl){media={url:offlineUrl}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{const host=$("#reader-content");if(host)host.textContent="Connecting to your book…";media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}
-  if(loan.item.media_type==="audiobook")await openAudio(media.url,loan);else await openEpub(media.url,loan);
+  let offlineBlob=null;if(window.bwOffline){try{offlineBlob=await window.bwOffline.getBlob(loan.item.id)}catch(offlineError){console.warn("Offline cache unavailable; opening from library server instead.",offlineError)}}
+  let media;if(offlineBlob){media={blob:offlineBlob}}else if(offlineMode||!navigator.onLine){throw new Error("This title hasn't been saved for offline reading yet. Connect to the internet, return to Loans, and tap Save offline on this title first.")}else{const host=$("#reader-content");if(host)host.textContent="Connecting to your book…";media=await api("media-url",{item_id:loan.item.id,loan_id:loan.id})}
+  if(loan.item.media_type==="audiobook")await openAudio(media.url,loan);else await openEpub(media.blob||media.url,loan);
  }catch(e){const host=$("#reader-content");if(host){host.innerHTML='<div class="reader-message"><div class="reader-message-icon">⌁</div><h2>Couldn’t open this title</h2><p>'+esc(e.message||"Something went wrong while opening this title.")+'</p><div class="reader-message-actions"><button id="reader-retry">Try again</button><button class="secondary" id="reader-error-back">Back to loans</button></div></div>';$("#reader-retry").onclick=()=>openLoan(loanId);$("#reader-error-back").onclick=closeReader}}
  finally{finishTransition()}
 }
 function closeReader(){
+ if(progressSaveTimer){clearTimeout(progressSaveTimer);progressSaveTimer=null;if(progressSavePending){const payload=progressSavePending;progressSavePending=null;api("progress",payload).catch(e=>console.warn("Reading progress sync failed",e))}}
  if(history.state?.bwReader)history.replaceState({bwPage:currentPage},"",location.href);
  if(!audio&&progressTimer){clearInterval(progressTimer);progressTimer=null}
  if(readerBook?.rendition){try{readerBook.rendition.destroy()}catch{}}
  readerBook=null;
  const panel=$("#reader-panel");if(panel){panel.innerHTML="";panel.classList.remove("reader-open");const loansPage=$("#page-loans");if(loansPage&&panel.parentElement===document.body)loansPage.appendChild(panel)}document.body.classList.remove("reader-active");
 }
-async function saveProgress(values){if(!readerBook)return;try{await api("progress",{loan_id:readerBook.loanId,...values})}catch(e){console.warn(e)}}
+let progressSaveTimer=null,progressSavePending=null;
+async function saveProgress(values){
+ if(!readerBook||!readerBook.loanId)return;
+ progressSavePending={loan_id:readerBook.loanId,...values};
+ if(progressSaveTimer)clearTimeout(progressSaveTimer);
+ progressSaveTimer=setTimeout(async()=>{
+  const payload=progressSavePending;progressSavePending=null;progressSaveTimer=null;
+  if(!payload)return;
+  try{await api("progress",payload)}catch(e){console.warn("Reading progress sync failed",e)}
+ },1100);
+}
 async function openEpub(url,loan){
  if(window.epubJsReady){try{await Promise.race([window.epubJsReady,new Promise((_,reject)=>setTimeout(()=>reject(new Error("The EPUB reader library is taking too long to load. Refresh and try again.")),12000))])}catch(error){throw new Error(error.message||"The EPUB reader library could not be loaded.")}}
  if(typeof window.ePub!=="function")throw new Error("The EPUB reader library did not load. Refresh BookWriters and try again.");
  const host=$("#reader-content");host.innerHTML="";host.style.display="block";
  const cacheKey=new Request(location.origin+"/__bw_epub_cache__/"+encodeURIComponent(loan.item.id));
  let epubData=null;
- try{const cache=await caches.open("bookwriters-epub-files-v1");const saved=await cache.match(cacheKey);if(saved)epubData=await saved.arrayBuffer()}catch(error){console.warn("EPUB cache unavailable",error)}
+ if(url instanceof Blob){epubData=await url.arrayBuffer()}else{
+  try{const cache=await caches.open("bookwriters-epub-files-v1");const saved=await cache.match(cacheKey);if(saved)epubData=await saved.arrayBuffer()}catch(error){console.warn("EPUB cache unavailable",error)}
+ }
  if(!epubData){
   const controller=new AbortController(),downloadTimer=setTimeout(()=>controller.abort(),60000);let response;
   try{response=await fetch(url,{signal:controller.signal})}catch(error){if(error.name==="AbortError")throw new Error("The book download timed out. Check your connection and try again.");throw new Error("The book file could not be downloaded. Check your connection and try again.")}finally{clearTimeout(downloadTimer)}
@@ -229,47 +242,40 @@ async function openEpub(url,loan){
  }
  if(!epubData.byteLength)throw new Error("The book file is empty.");
  const section=host.closest(".reader-fullscreen");section?.classList.add("reader-immersive");
- const bookmarkKey="bw-reader-bookmark:"+loan.item.id;
- const savedBookmark=localStorage.getItem(bookmarkKey)||"";
- if(section&&!$("#reader-bookmark",section)){
-  const mark=document.createElement("button");mark.id="reader-bookmark";mark.className="reader-bookmark";mark.type="button";mark.setAttribute("aria-label",savedBookmark?"Remove bookmark":"Add bookmark");mark.textContent=savedBookmark?"◆":"♧";
-  section.appendChild(mark);
-  mark.onclick=()=>{const current=readerBook?.currentCfi;if(savedBookmark||localStorage.getItem(bookmarkKey)){localStorage.removeItem(bookmarkKey);mark.textContent="♧";mark.setAttribute("aria-label","Add bookmark");toast("Bookmark removed.")}else if(current){localStorage.setItem(bookmarkKey,current);mark.textContent="◆";mark.setAttribute("aria-label","Remove bookmark");toast("Bookmark saved.")}else toast("Turn a page first, then add your bookmark.",true)};
- }
  const book=ePub(epubData);
  await Promise.race([book.opened,new Promise((_,reject)=>setTimeout(()=>reject(new Error("The EPUB could not be processed. The file may be damaged or unsupported.")),18000))]);
- const rendition=book.renderTo(host,{width:"100%",height:"100%",spread:"none",flow:"paginated"});
+ const rendition=book.renderTo(host,{width:"100%",height:"100%",spread:"none",flow:"paginated",allowScriptedContent:false});
  readerBook.rendition=rendition;readerBook.currentCfi="";
  let pageTurning=false;
- const move=dir=>{if(pageTurning)return;pageTurning=true;try{const result=dir<0?rendition.prev():rendition.next();if(result&&typeof result.then==="function")return result.catch(error=>console.warn("Page turn failed",error)).finally(()=>{pageTurning=false});pageTurning=false;return result}catch(error){pageTurning=false;console.warn("Page turn failed",error)}};
+ const move=dir=>{
+  if(pageTurning)return;
+  pageTurning=true;
+  try{const result=dir<0?rendition.prev():rendition.next();if(result&&typeof result.then==="function")return result.catch(error=>console.warn("Page turn failed",error)).finally(()=>{pageTurning=false});pageTurning=false;return result}
+  catch(error){pageTurning=false;console.warn("Page turn failed",error)}
+ };
  const toggleMenu=()=>section?.classList.toggle("reader-menu-open");
  const buttons=$("#reader-buttons");buttons.innerHTML='<button class="secondary" id="page-prev">Previous</button><span class="small" id="page-label">Reading</span><button id="page-next">Next</button>';
  $("#page-prev").onclick=()=>move(-1);$("#page-next").onclick=()=>move(1);
  rendition.hooks.content.register(contents=>{
-  const doc=contents.document;let startPoint=null,lastTap=0,tapTimer=null;
+  const doc=contents.document;let startPoint=null,lastTap=0;
   doc.addEventListener("pointerdown",e=>{startPoint={x:e.clientX,y:e.clientY,time:Date.now()}},{passive:true});
   doc.addEventListener("pointerup",e=>{
    if(!startPoint)return;
-   const dx=e.clientX-startPoint.x,dy=e.clientY-startPoint.y,duration=Date.now()-startPoint.time;
-   const sx=startPoint.x,sy=startPoint.y;startPoint=null;
-   if(Math.abs(dx)>42&&Math.abs(dx)>Math.abs(dy)*1.15){if(tapTimer){clearTimeout(tapTimer);tapTimer=null}move(dx>0?-1:1);return}
+   const dx=e.clientX-startPoint.x,dy=e.clientY-startPoint.y,duration=Date.now()-startPoint.time,sx=startPoint.x;startPoint=null;
+   if(Math.abs(dx)>42&&Math.abs(dx)>Math.abs(dy)*1.15){move(dx>0?-1:1);return}
    if(Math.abs(dx)>12||Math.abs(dy)>12||duration>450)return;
    const width=doc.documentElement.clientWidth||window.innerWidth;
    if(sx<width*.3){move(-1);return}
    if(sx>width*.7){move(1);return}
-   const now=Date.now();
-   if(now-lastTap<320){if(tapTimer)clearTimeout(tapTimer);tapTimer=null;lastTap=0;toggleMenu()}
-   else{lastTap=now;tapTimer=setTimeout(()=>{tapTimer=null},330)}
+   const now=Date.now();if(now-lastTap<320){lastTap=0;toggleMenu()}else lastTap=now;
   },{passive:true});
   doc.addEventListener("keydown",e=>{if(e.key==="ArrowLeft")move(-1);if(e.key==="ArrowRight")move(1);if(e.key==="Escape")toggleMenu()});
  });
- const startLocation=savedBookmark||loan.progress?.reading_location||undefined;
- await Promise.race([rendition.display(startLocation),new Promise((_,reject)=>setTimeout(()=>reject(new Error("The reader could not load this EPUB. The file may be damaged or unsupported.")),18000))]);
+ await Promise.race([rendition.display(loan.progress?.reading_location||undefined),new Promise((_,reject)=>setTimeout(()=>reject(new Error("The reader could not load this EPUB. The file may be damaged or unsupported.")),18000))]);
  rendition.on("relocated",loc=>{
   const page=loc.start?.displayed?.page||0,total=loc.start?.displayed?.total||null,cfi=loc.start?.cfi||"";
   readerBook.currentCfi=cfi;
   const label=$("#page-label");if(label)label.textContent=total?"Page "+page+" of "+total:"Reading";
-  const mark=$("#reader-bookmark");if(mark){const active=!!localStorage.getItem(bookmarkKey);mark.textContent=active?"◆":"♧";mark.setAttribute("aria-label",active?"Remove bookmark":"Add bookmark")}
   saveProgress({current_page:page,total_pages:total,reading_location:cfi});
  });
  host.tabIndex=0;host.onkeydown=e=>{if(e.key==="ArrowLeft")move(-1);if(e.key==="ArrowRight")move(1)};
