@@ -1,6 +1,6 @@
-# BookWriters
+# BookReaders
 
-BookWriters is a web-based borrowing library with an Android app wrapper. Readers can discover and borrow books, graphic novels, and audiobooks, read EPUBs, listen to audio, manage loans, and keep reading progress. The live site is:
+BookReaders is a web-based borrowing library with an Android app wrapper. Readers can discover and borrow books, graphic novels, and audiobooks, read EPUBs, listen to audio, manage loans, and keep reading progress. The live site is:
 
 **https://pickles315.github.io/Book-writers/**
 
@@ -35,7 +35,7 @@ The Android project is in `android/`. Its `MainActivity.kt` creates a WebView an
 
 The WebView enables JavaScript and browser storage because the website needs them for sign-in, themes, reading progress, and offline downloads. The app also:
 
-- Keeps the BookWriters website inside the app when the URL is on `pickles315.github.io`.
+- Keeps the BookReaders website inside the app when the URL is on `pickles315.github.io`.
 - Opens other web links in the device's browser.
 - Provides a file picker for EPUB books, MP3 audiobooks, and images.
 - Bridges the website's session token to Android so background notifications can check the signed-in reader's account.
@@ -90,15 +90,15 @@ Publishing and deleting are checked by the Edge Function. Hiding the admin butto
 | `offline.js` | IndexedDB downloads and offline media support. |
 | `sw.js` | Service worker cache and offline fallback for site resources. |
 | `jszip.min.js` | Local JSZip dependency used when opening EPUB files. |
-| `android/app/src/main/java/com/bookwriters/app/MainActivity.kt` | Android WebView shell, file picker, and website-to-Android bridge. |
-| `android/app/src/main/java/com/bookwriters/app/NotificationWorker.kt` | Background notification fetch and display. |
+| `android/app/src/main/java/com/BookReaders/app/MainActivity.kt` | Android WebView shell, file picker, and website-to-Android bridge. |
+| `android/app/src/main/java/com/BookReaders/app/NotificationWorker.kt` | Background notification fetch and display. |
 | `android/app/build.gradle.kts` | Android application ID, SDK levels, version, and dependencies. |
 | `.github/workflows/android-apk.yml` | Automated debug APK build. |
 | `*-migration.sql`, `*-schema.sql`, `*-functions.sql` | Database setup and migration scripts. |
 
 ## Backend and data
 
-The live backend uses the Supabase project configured for BookWriters and the `library-api` Edge Function.
+The live backend uses the Supabase project configured for BookReaders and the `library-api` Edge Function.
 
 - **Database:** library cards, profiles, catalogue items, loans, waitlists, reading progress, reviews, notifications, and other library records.
 - **Private Storage:** EPUBs, MP3s, and cover images. The API issues short-lived signed URLs when access is allowed.
@@ -115,9 +115,9 @@ The GitHub Actions workflow creates a **debug APK** for testing. It is not a Pla
 ### Download the latest APK
 
 1. Open the repository's **Actions** tab on GitHub.
-2. Select **Build BookWriters Android APK**.
+2. Select **Build BookReaders Android APK**.
 3. Open the latest successful run on the `main` branch.
-4. Scroll to **Artifacts** and download **BookWriters-Android-debug**.
+4. Scroll to **Artifacts** and download **BookReaders-Android-debug**.
 5. Extract the ZIP file and install `app-debug.apk` on the Android device.
 
 The workflow keeps the artifact for 14 days. If the artifact has expired, run the workflow again.
@@ -153,7 +153,7 @@ This repository currently uses the installed Gradle command rather than includin
 A push to `main` that changes Android source, the website's app files, the backend source/migrations, or the workflow will start the APK workflow. You can also start it manually:
 
 1. Open **Actions**.
-2. Select **Build BookWriters Android APK**.
+2. Select **Build BookReaders Android APK**.
 3. Press **Run workflow**.
 4. Select `main` and confirm.
 
@@ -161,7 +161,7 @@ The workflow checks JavaScript syntax, sets up Java/Android/Gradle, builds the d
 
 ## How website updates reach the APK
 
-Most BookWriters changes are website changes, not native Android changes. Since the APK loads the live GitHub Pages website, changes to HTML, CSS, JavaScript, catalogue data, and Edge Function behavior normally reach the installed APK without rebuilding or reinstalling it.
+Most BookReaders changes are website changes, not native Android changes. Since the APK loads the live GitHub Pages website, changes to HTML, CSS, JavaScript, catalogue data, and Edge Function behavior normally reach the installed APK without rebuilding or reinstalling it.
 
 For frontend changes:
 1. Commit and publish the website files to the GitHub Pages branch.
@@ -177,7 +177,7 @@ Rebuild the APK only when changing native Android code, Android resources, permi
 - **A website feature works in Chrome but not in the APK:** check WebView storage, permissions, file chooser behavior, and whether the feature depends on browser APIs unsupported by Android WebView.
 - **EPUB files do not open:** check that JSZip and epub.js loaded, the book is a valid EPUB, and the device can reach the file URL or has downloaded the title for offline use.
 - **Offline books are missing:** download the loan while online first. Offline files are stored locally on that device and are not shared with Chrome or another phone.
-- **Notifications do not appear:** enable notifications in Android settings, allow BookWriters notification permission, sign in again if the session expired, and ensure the device has network access. WorkManager scheduling is controlled by Android and may be delayed by battery optimization.
+- **Notifications do not appear:** enable notifications in Android settings, allow BookReaders notification permission, sign in again if the session expired, and ensure the device has network access. WorkManager scheduling is controlled by Android and may be delayed by battery optimization.
 - **An APK update reports a package/signature conflict:** the debug APK may have been signed with a different temporary debug key by a different GitHub Actions runner. Android cannot install an APK over an existing app when the signatures do not match. Back up anything needed, uninstall the old debug app, then install the new one and sign in again. Uninstalling clears that installation's local WebView/offline data; server-side account data remains on the backend.
 - **A build fails:** open the failed workflow run and inspect the JavaScript syntax-check or Gradle build log.
 
