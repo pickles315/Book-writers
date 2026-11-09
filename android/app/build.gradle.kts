@@ -33,3 +33,7 @@ android {
         jvmTarget = "17"
     }
 }
+
+dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+}
