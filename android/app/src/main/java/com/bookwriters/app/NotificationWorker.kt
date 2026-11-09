@@ -1,4 +1,4 @@
-package com.BookReaders.app
+package com.bookwriters.app
 
 import android.Manifest
 import android.app.Notification
@@ -109,10 +109,10 @@ class NotificationWorker(
     }
 
     companion object {
-        const val PREFS = "BookReaders_notification_prefs"
+        const val PREFS = "bookwriters_notification_prefs"
         const val TOKEN_KEY = "session_token"
         private const val SEEN_IDS_KEY = "seen_notification_ids"
-        private const val CHANNEL_ID = "BookReaders_library_updates"
+        private const val CHANNEL_ID = "bookwriters_library_updates"
         private const val API_URL = "https://ysomxdoicbfmgbveghkr.supabase.co/functions/v1/library-api"
         private const val SUPABASE_KEY = "sb_publishable_1VtpTU1pGn9yLn6Q_POtsw_Kp5ULXv6"
 
