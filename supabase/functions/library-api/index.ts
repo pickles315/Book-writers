@@ -512,7 +512,7 @@ Deno.serve(async (req: Request) => {
           author_name: anonymous ? "Anonymous reader" : (cardMap.get(x.card_id)?.display_name || "Reader"),
           profile_id: publicProfile ? x.card_id : null, avatar_url: avatarUrl };
       }));
-      return json({ reviews, average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length });
+      return json({ reviews, average: rows.length ? rows.reduce((n: number, x: any) => n + x.rating, 0) / rows.length : null, count: rows.length, can_delete_reviews: await adminOnly(card) });
     }
 
     if (action === "reading-history") {
