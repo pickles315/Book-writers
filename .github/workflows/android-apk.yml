@@ -25,6 +25,7 @@ on:
       - "book-details.js"
       - "requests.js"
       - "features.js"
+      - "extras.js"
       - "offline.js"
       - "sw.js"
       - "supabase/functions/library-api/**"
