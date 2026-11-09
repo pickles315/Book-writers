@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:allowBackup="false"
-        android:label="BookWriters"
+        android:label="BookReaders"
         android:icon="@drawable/ic_bookwriters"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false"
