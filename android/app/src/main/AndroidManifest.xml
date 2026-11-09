@@ -5,7 +5,7 @@
     <application
         android:allowBackup="false"
         android:label="BookReaders"
-        android:icon="@drawable/ic_bookwriters"
+        android:icon="@drawable/ic_bookreaders"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
