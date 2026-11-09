@@ -95,6 +95,10 @@ document.addEventListener("click",async e=>{
 document.addEventListener("click",e=>{
  const nav=e.target.closest("[data-page]");if(nav){$("#page-my-shelf")?.classList.add("hidden");$("#page-library-admin")?.classList.add("hidden")}
 },true);
+document.addEventListener("click",async e=>{
+ const b=e.target.closest("[data-public-profile]");if(!b)return;
+ try{const data=await api("public-reader-profile",{profile_id:b.dataset.publicProfile});const p=data.profile;let modal=document.getElementById("bw-public-profile-modal");if(!modal){modal=document.createElement("div");modal.id="bw-public-profile-modal";modal.className="modal";modal.innerHTML='<div class="modal-box"><button class="ghost" id="bw-public-profile-close">Close</button><div id="bw-public-profile-content"></div></div>';document.body.appendChild(modal);modal.addEventListener("click",ev=>{if(ev.target===modal||ev.target.closest("#bw-public-profile-close"))modal.remove()})}modal.querySelector("#bw-public-profile-content").innerHTML=(p.avatar_url?'<img src="'+esc(p.avatar_url)+'" alt="Profile picture" style="width:88px;height:88px;object-fit:cover;border-radius:50%">':'')+'<h2>'+esc(p.display_name)+'</h2><p>'+esc(p.bio||"")+'</p><p class="small">'+esc(p.favorite_genre||"")+'</p><p class="small">Member since '+new Date(p.member_since).toLocaleDateString()+'</p>'}catch(err){toast(err.message,true)}
+});
 document.addEventListener("click",e=>{
  const b=e.target.closest("[data-book-detail]");if(!b)return;
  const itemId=b.dataset.bookDetail;
@@ -120,7 +124,7 @@ async function loadReviews(id){
  try{
   const data=await api("reviews",{item_id:id});
   $("#bw-review-summary").textContent=data.count?data.average.toFixed(1)+" / 5 · "+data.count+" review"+(data.count===1?"":"s"):"No reviews yet.";
-  $("#bw-review-list").innerHTML=(data.reviews||[]).map(x=>'<div class="bw-review"><strong>'+x.rating+'/5</strong> '+(x.is_mine?'<span class="tag">Your review</span>':'')+'<p style="white-space:pre-wrap">'+esc(x.review||"No written review.")+'</p>'+(x.is_mine?'<button class="danger" data-review-delete="'+esc(id)+'">Delete my review</button>':'')+'</div>').join("");
+  $("#bw-review-list").innerHTML=(data.reviews||[]).map(x=>'<div class="bw-review"><strong>'+x.rating+'/5</strong> '+(x.is_mine?'<span class="tag">Your review</span>':'')+'<p style="white-space:pre-wrap">'+esc(x.review||"No written review.")+'</p>'+(x.profile_id?'<button class="ghost" data-public-profile="'+esc(x.profile_id)+'">View reader profile</button>':'<span class="small">'+esc(x.author_name||"Reader")+(x.author_name==="Anonymous reader"?"":"") +'</span>')+(x.is_mine?'<button class="danger" data-review-delete="'+esc(id)+'">Delete my review</button>':'')+'</div>').join("");
   const mine=(data.reviews||[]).find(x=>x.is_mine);if(mine){$("#bw-review-rating").value=mine.rating;$("#bw-review-text").value=mine.review||""}
  }catch(e){$("#bw-review-summary").textContent=e.message}
 }
