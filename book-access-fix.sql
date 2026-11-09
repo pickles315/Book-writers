@@ -1,4 +1,4 @@
--- BookWriters: restore owners' access to their own books and chapters.
+-- BookReaders: restore owners' access to their own books and chapters.
 -- Run this file in Supabase Dashboard -> SQL Editor, then deploy the matching
 -- app commit. This migration changes policies only; it does not delete book data.
 --
