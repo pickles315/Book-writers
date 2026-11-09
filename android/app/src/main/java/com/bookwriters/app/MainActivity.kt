@@ -1,4 +1,4 @@
-package com.bookwriters.app
+package com.BookReaders.app
 
 import android.Manifest
 import android.app.Activity
@@ -54,7 +54,9 @@ class MainActivity : Activity() {
         ))
 
         webView = WebView(this)
-        webView.addJavascriptInterface(AndroidNotificationBridge(), "BookWritersAndroid")
+        val notificationBridge = AndroidNotificationBridge()
+        webView.addJavascriptInterface(notificationBridge, "BookReadersAndroid")
+        webView.addJavascriptInterface(notificationBridge, "BookWritersAndroid")
         root.addView(webView, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         ))
@@ -148,7 +150,7 @@ class MainActivity : Activity() {
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         WorkManager.getInstance(this).enqueueUniqueWork(
-            "bookwriters-notifications-now",
+            "BookReaders-notifications-now",
             ExistingWorkPolicy.REPLACE,
             request
         )
@@ -188,7 +190,7 @@ class MainActivity : Activity() {
                         REQUEST_NOTIFICATION_PERMISSION
                     )
                 } else {
-                    Toast.makeText(this@MainActivity, "BookWriters notifications are allowed.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "BookReaders notifications are allowed.", Toast.LENGTH_SHORT).show()
                     runBackgroundCheckSoon()
                 }
             }
@@ -205,7 +207,7 @@ class MainActivity : Activity() {
             val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
             Toast.makeText(
                 this,
-                if (granted) "BookWriters notifications enabled." else "Notifications are blocked. You can allow them in Android settings.",
+                if (granted) "BookReaders notifications enabled." else "Notifications are blocked. You can allow them in Android settings.",
                 Toast.LENGTH_LONG
             ).show()
             if (granted) runBackgroundCheckSoon()
@@ -249,7 +251,7 @@ class MainActivity : Activity() {
     companion object {
         private const val FILE_CHOOSER_REQUEST = 1001
         private const val REQUEST_NOTIFICATION_PERMISSION = 1002
-        private const val BACKGROUND_WORK_NAME = "bookwriters-background-notifications"
+        private const val BACKGROUND_WORK_NAME = "BookReaders-background-notifications"
         private const val SITE_URL = "https://pickles315.github.io/Book-writers/"
     }
 }
